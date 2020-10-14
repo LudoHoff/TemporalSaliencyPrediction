@@ -73,9 +73,9 @@ loaded_model.load_weights(W)
 
 print("Loading images...")
 model_inp_size = (240, 320)
-image_path = "../data/images/train/"
+image_path = "../data/images/test/"
 output_path = "../data/3-sliced_predictions/"
-imgs = [os.path.join(image_path, f) for f in sorted(os.listdir(image_path)) if f != ".DS_Store"]
+imgs = [os.path.join(image_path, f) for f in sorted(os.listdir(image_path)) if f != ".DS_Store"][:1000]
 images = preprocess_images(imgs, model_inp_size[0], model_inp_size[1])
 
 print("Predicting saliency maps...")
