@@ -85,12 +85,13 @@ x = np.array([], dtype='float')
 y = np.array([], dtype='float')
 
 for i in tqdm(range(REL_SAMPLES)):
-    ground_truth = ground_truths[i]
-    fix_timestamps = np.array(sorted([fixation for fix_timestamps in saliency_volumes[i]
-                        for fixation in fix_timestamps], key=lambda x: (x[0])))
+    fix_timestamps = sorted([fixation for fix_timestamps in saliency_volumes[i]
+                        for fixation in fix_timestamps], key=lambda x: (x[0]))
 
-    x = np.concatenate((x, fix_timestamps[:,0].astype(dtype='float')))
-    y = np.concatenate((y, np.array([ground_truth[y - 1, x - 1] for [timestamp, [x, y]] in fix_timestamps], dtype='float')))
+    xi = np.array([t for [t, _] in fix_timestamps], dtype='float')
+    yi = np.array([ground_truths[i][y - 1, x - 1] for [_, [x, y]] in fix_timestamps], dtype='float')
+    x = np.concatenate((x, xi))
+    y = np.concatenate((y, yi))
 
 
 print("Generating heatmap...")
