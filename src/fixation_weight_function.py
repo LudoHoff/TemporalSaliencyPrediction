@@ -1,19 +1,13 @@
-import pylab
 import fnmatch
 import os
 import random
-import cv2
 
 import numpy as np
-import skimage.io as io
 import scipy.io as sio
 import matplotlib.pyplot as plt
-import ipywidgets as wg
-import scipy.interpolate as interp
 
 from matplotlib.image import imread
 from tqdm import tqdm
-from scipy import ndimage
 from scipy.spatial import distance
 from scipy.stats import gaussian_kde
 
@@ -28,7 +22,7 @@ TRAINING_SIZE = 10000
 MDSEM_SIZE = 500
 W = 640
 H = 480
-REL_SAMPLES = 10000
+REL_SAMPLES = TRAINING_SIZE
 
 MAX_PIXEL_DISTANCE = np.linalg.norm([W, H])
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
