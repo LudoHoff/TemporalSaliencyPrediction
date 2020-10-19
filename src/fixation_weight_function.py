@@ -14,15 +14,11 @@ from scipy.stats import gaussian_kde
 IMAGE_PATH = '../data/images/train/'
 FIXATION_PATH = '../data/fixations/train/'
 MAP_PATH = '../data/maps/train/'
-GT_SLICE_PATH = '../data/3-sliced_maps/'
-MDSEM_GT_SLICE_PATH = '../data/mdsem_3-sliced_maps/'
-FIX_SLICE_PATH = '../data/3-sliced_fixations/'
 
 TRAINING_SIZE = 10000
-MDSEM_SIZE = 500
 W = 640
 H = 480
-REL_SAMPLES = TRAINING_SIZE
+REL_SAMPLES = 10
 
 MAX_PIXEL_DISTANCE = np.linalg.norm([W, H])
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
