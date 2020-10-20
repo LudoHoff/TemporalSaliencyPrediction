@@ -1,9 +1,11 @@
 import fnmatch
 import os
 import random
+import matplotlib
 
 import numpy as np
 import scipy.io as sio
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from matplotlib.image import imread
@@ -18,7 +20,7 @@ MAP_PATH = '../data/maps/train/'
 TRAINING_SIZE = 10000
 W = 640
 H = 480
-REL_SAMPLES = 500
+REL_SAMPLES = 1000
 
 MAX_PIXEL_DISTANCE = np.linalg.norm([W, H])
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
