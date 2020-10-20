@@ -18,6 +18,8 @@ from copy import copy
 import matplotlib.pyplot as plt
 import os
 import cv2
+import tqdm
+from scipy.stats import entropy
 #########################################################################################
 
 ##############################  saliency metrics  #######################################
@@ -132,24 +134,20 @@ def KLdiv(saliencyMap, fixationMap):
     # fixationMap is the human fixation map
 
     # convert to float
-    map1 = saliencyMap.astype(float)
-    map2 = fixationMap.astype(float)
+    eps = 1e-12
+    map1 = eps + saliencyMap.astype(float)
+    map2 = eps + fixationMap.astype(float)
 
     # make sure maps have the same shape
-    from skimage.transform import resize
-    map1 = resize(map1, np.shape(map2))
+    if map1.shape != map2.shape:
+        from skimage.transform import resize
+        map1 = resize(map1, map2.shape)
 
     # make sure map1 and map2 sum to 1
-    if map1.any():
-        map1 = map1 / map1.sum()
-    if map2.any():
-        map2 = map2 / map2.sum()
+    map1 = map1 / map1.sum()
+    map2 = map2 / map2.sum()
 
-    # compute KL-divergence
-    eps = 10 ** -12
-    score = map2 * np.log(eps + map2 / (map1 + eps))
-
-    return score.sum()
+    return (map2 * np.log(map2 / map1)).sum()
 
 
 ######################################################################################
@@ -212,61 +210,37 @@ def euclidean_distance(human_scanpath, simulated_scanpath):
         print('Error: The two sequences must have the same length!')
         return False
 
+################################################################################
 
-gt_directory = '/Users/ludo/Documents/Semester Project/salicon-api-master/3-sliced_fixations/500/'#'/Users/aydemir/Desktop/saliencyautoencoder/saliency-master/data/mit1003/fixations/'
-sm_directory = '/Users/ludo/Documents/Semester Project/salicon-api-master/3-sliced_predictions/500/'#'/Users/aydemir/Documents/matlab_saliency/saliency/outputs_default_relu'
+slices = [500, 3000, 5000]
 
-gt_path = os.path.join(gt_directory)#, str(i))
-sm_path = os.path.join(sm_directory)#, str(i))
-print(gt_path)
-print(sm_path)
-#Now to sort based on their file number. The "key" parameter in sorted is a function based on which the sorting will happen (I use split to exclude the jpg/png from the).
+gt_directory = '/Users/ludo/Documents/Semester Project/TemporalSaliencyPrediction/data/3-sliced_maps/'
+fx_directory = '/Users/ludo/Documents/Semester Project/TemporalSaliencyPrediction/data/3-sliced_fixations/'
+sm_directory = '/Users/ludo/Documents/Semester Project/TemporalSaliencyPrediction/data/3-sliced_mdsem_preds/'
 
-gt_files_sorted = [f for f in sorted(os.listdir(gt_path)) if f != ".DS_Store"]#, key = lambda x: int(x.split(".")[0]) )
-sm_files_sorted = [f for f in sorted(os.listdir(gt_path)) if f != ".DS_Store"]#, key = lambda x: int(x.split(".")[0]) )
+gt_path = os.path.join(gt_directory)
+fx_path = os.path.join(fx_directory)
+sm_path = os.path.join(sm_directory)
+
+filenames = [f for f in sorted(os.listdir(sm_path + str(slices[0]))) if f != ".DS_Store"][:10]
 
 AUC_score = 0
 KL_score = 0
 NSS_score = 0
 gt_related =[]
 sm_related = []
-# for sm in sm_files_sorted:
-#     if "DS_Store" in sm:
-#              continue
-#     sm_related.append(sm)
 
-# for gt in gt_files_sorted:
+for filename in tqdm.tqdm(filenames):
+    for slice in slices:
+        img_gt = cv2.imread(gt_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE)
+        img_fx = cv2.imread(fx_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE)
+        img_sm = cv2.imread(sm_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE)
 
-#     if "DS_Store" in gt:
-#              continue
-#     gt_related.append(gt)
+        AUC_score += AUC_Judd(img_sm, img_fx)
+        KL_score += KLdiv(img_sm, img_gt)
+        NSS_score += NSS(img_sm, img_fx)
 
-# for sm in sm_files_sorted:
-#     for gt in gt_files_sorted:
-#         if "DS_Store" in sm:
-#             continue
-#         else:
-#             if "DS_Store" in gt:
-#                 continue
-#             elif sm.split(".")[0] in gt :
-#                 sm_related.append(sm)
-#                 gt_related.append(gt)
-#                 break
-
-
-
-#print(len(sm_related))
-#print(len(gt_related))
-idx = 0
-pack = zip(gt_files_sorted, sm_files_sorted)
-for p in pack :
-    img_sm = cv2.imread(os.path.join(sm_path, p[1]),cv2.IMREAD_GRAYSCALE)
-    img_gt = cv2.imread(os.path.join(gt_path, p[0]),cv2.IMREAD_GRAYSCALE)
-    AUC_score += AUC_Judd(img_sm, img_gt)
-    KL_score += KLdiv(img_sm, img_gt)
-    NSS_score += NSS(img_sm, img_gt)
-    idx +=1
-    print(idx)
-print("AUC Judd: ", AUC_score / idx)
-print("KL: ", KL_score / idx)
-print("NSS: ", NSS_score / idx)
+n = len(filenames) * len(slices)
+print("AUC Judd: ", AUC_score / n)
+print("KL: ", KL_score / n)
+print("NSS: ", NSS_score / n)

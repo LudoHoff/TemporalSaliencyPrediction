@@ -18,13 +18,13 @@ MAP_PATH = '../data/maps/train/'
 TRAINING_SIZE = 10000
 W = 640
 H = 480
-REL_SAMPLES = 10
+REL_SAMPLES = 500
 
 MAX_PIXEL_DISTANCE = np.linalg.norm([W, H])
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 
 def get_filenames(path):
-    return [file for file in sorted(os.listdir(path)) if fnmatch.fnmatch(file, 'COCO_*.*')]
+    return [file for file in sorted(os.listdir(path)) if fnmatch.fnmatch(file, 'COCO_*')]
 
 def get_saliency_volumes(filenames=get_filenames(FIXATION_PATH), etw=ESTIMATED_TIMESTAMP_WEIGHT,
                          progress_bar=True):
