@@ -1,25 +1,10 @@
-'''
-Created on 1 mar 2017
-@author: 	Dario Zanca
-@summary: 	Collection of functions to compute visual attention metrics for:
-                - saliency maps similarity
-                    - AUC Judd (Area Under the ROC Curve, Judd version)
-                    - KL Kullback Leiber divergence
-                    - NSS Normalized Scanpath Similarity
-                - scanpaths similarity
-'''
-
-#########################################################################################
-
-# IMPORT EXTERNAL LIBRARIES
-
 import numpy as np
 from copy import copy
 import matplotlib.pyplot as plt
 import os
 import cv2
 import tqdm
-from scipy.stats import entropy
+
 #########################################################################################
 
 ##############################  saliency metrics  #######################################
@@ -38,7 +23,7 @@ correspond to the ratio of saliency map values above threshold at all other loca
 the total number of posible other locations (non-fixated image pixels) '''
 
 
-def AUC_Judd(saliencyMap, fixationMap, jitter=True, toPlot=False):
+def AUC_Judd(saliencyMap, fixationMap, jitter=True):
     # saliencyMap is the saliency map
     # fixationMap is the human fixation map (binary matrix)
     # jitter=True will add tiny non-zero random constant to all map locations to ensure
@@ -51,12 +36,6 @@ def AUC_Judd(saliencyMap, fixationMap, jitter=True, toPlot=False):
         score = float('nan')
         return score
 
-    # make the saliencyMap the size of the image of fixationMap
-
-    if not np.shape(saliencyMap) == np.shape(fixationMap):
-        from skimage.transform import resize
-        saliencyMap = resize(saliencyMap, np.shape(fixationMap))
-
     # jitter saliency maps that come from saliency models that have a lot of zero values.
     # If the saliency map is made with a Gaussian then it does not need to be jittered as
     # the values are varied and there is not a large patch of the same value. In fact
@@ -64,16 +43,6 @@ def AUC_Judd(saliencyMap, fixationMap, jitter=True, toPlot=False):
     if jitter:
         # jitter the saliency map slightly to distrupt ties of the same numbers
         saliencyMap = saliencyMap + np.random.random(np.shape(saliencyMap)) / 10 ** 7
-
-    # normalize saliency map
-    saliencyMap = (saliencyMap - saliencyMap.min()) \
-                  / (saliencyMap.max() - saliencyMap.min())
-    #cv2.imshow("das",saliencyMap)
-    #cv2.waitKey(0)
-    if np.isnan(saliencyMap).all():
-        print('NaN saliencyMap')
-        score = float('nan')
-        return score
 
     S = saliencyMap.flatten()
     F = fixationMap.flatten()
@@ -88,10 +57,6 @@ def AUC_Judd(saliencyMap, fixationMap, jitter=True, toPlot=False):
     tp[0], tp[-1] = 0, 1
     fp[0], fp[-1] = 0, 1
 
-
-
-
-
     for i in range(Nfixations):
         thresh = allthreshes[i]
         aboveth = (S >= thresh).sum()  # total number of sal map values above threshold
@@ -104,32 +69,117 @@ def AUC_Judd(saliencyMap, fixationMap, jitter=True, toPlot=False):
     allthreshes = np.insert(allthreshes, 0, 0)
     allthreshes = np.append(allthreshes, 1)
 
-    if toPlot:
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 2, 1)
-        ax.matshow(saliencyMap, cmap='gray')
-        ax.set_title('SaliencyMap with fixations to be predicted')
-        [y, x] = np.nonzero(fixationMap)
-        s = np.shape(saliencyMap)
-        plt.axis((-.5, s[1] - .5, s[0] - .5, -.5))
-        plt.plot(x, y, 'ro')
-
-        ax = fig.add_subplot(1, 2, 2)
-        plt.plot(fp, tp, '.b-')
-        ax.set_title('Area under ROC curve: ' + str(score))
-        plt.axis((0, 1, 0, 1))
-        plt.show()
-
     return score
-''' created: Zoya Bylinskii, Aug 2014
-    python-version by: Dario Zanca, Jan 2017
-This finds the KL-divergence between two different saliency maps when viewed as
-distributions: it is a non-symmetric measure of the information lost when saliencyMap
-is used to estimate fixationMap. '''
 
+################################################################################
 
-def KLdiv(saliencyMap, fixationMap):
+def AUC(gtsAnn, resAnn, stepSize=.01, Nrand=100000):
+    """
+    Computer AUC score.
+    :param gtsAnn : ground-truth annotations
+    :param resAnn : predicted saliency map
+    :return score: int : score
+    """
+
+    salMap = resAnn - np.min(resAnn)
+    if np.max(salMap) > 0:
+        salMap = salMap / np.max(salMap)
+
+    S = salMap.reshape(-1)
+    Sth = np.asarray([ salMap[y-1][x-1] for y,x in gtsAnn ])
+
+    Nfixations = len(gtsAnn)
+    Npixels = len(S)
+
+    # sal map values at random locations
+    randfix = S[np.random.randint(Npixels, size=Nrand)]
+
+    allthreshes = np.arange(0,np.max(np.concatenate((Sth, randfix), axis=0)),stepSize)
+    allthreshes = allthreshes[::-1]
+    tp = np.zeros(len(allthreshes)+2)
+    fp = np.zeros(len(allthreshes)+2)
+    tp[-1]=1.0
+    fp[-1]=1.0
+    tp[1:-1]=[float(np.sum(Sth >= thresh))/Nfixations for thresh in allthreshes]
+    fp[1:-1]=[float(np.sum(randfix >= thresh))/Nrand for thresh in allthreshes]
+
+    auc = np.trapz(tp,fp)
+    return auc
+
+################################################################################
+
+def SAUC(gtsAnn, resAnn, shufMap, stepSize=.01):
+    """
+    Computer SAUC score. A simple implementation
+    :param gtsAnn : list of fixation annotations
+    :param resAnn : list only contains one element: the result annotation - predicted saliency map
+    :return score: int : score
+    """
+
+    salMap = resAnn - np.min(resAnn)
+    if np.max(salMap) > 0:
+        salMap = salMap / np.max(salMap)
+    Sth = np.asarray([ salMap[y-1][x-1] for y,x in gtsAnn ])
+    Nfixations = len(gtsAnn)
+
+    others = np.copy(shufMap)
+    for y,x in gtsAnn:
+        others[y-1][x-1] = 0
+
+    ind = np.nonzero(others) # find fixation locations on other images
+    nFix = shufMap[ind]
+    randfix = salMap[ind]
+    Nothers = sum(nFix)
+
+    allthreshes = np.arange(0,np.max(np.concatenate((Sth, randfix), axis=0)),stepSize)
+    allthreshes = allthreshes[::-1]
+    tp = np.zeros(len(allthreshes)+2)
+    fp = np.zeros(len(allthreshes)+2)
+    tp[-1]=1.0
+    fp[-1]=1.0
+    tp[1:-1]=[float(np.sum(Sth >= thresh))/Nfixations for thresh in allthreshes]
+    fp[1:-1]=[float(np.sum(nFix[randfix >= thresh]))/Nothers for thresh in allthreshes]
+
+    auc = np.trapz(tp,fp)
+    return auc
+
+################################################################################
+
+def CC(gtsAnn, resAnn):
+    """
+    Computer CC score. A simple implementation
+    :param gtsAnn : ground-truth fixation map
+    :param resAnn : predicted saliency map
+    :return score: int : score
+    """
+
+    fixationMap = gtsAnn - np.mean(gtsAnn)
+    if np.max(fixationMap) > 0:
+        fixationMap = fixationMap / np.std(fixationMap)
+    salMap = resAnn - np.mean(resAnn)
+    if np.max(salMap) > 0:
+        salMap = salMap / np.std(salMap)
+
+    return np.corrcoef(salMap.reshape(-1), fixationMap.reshape(-1))[0][1]
+
+################################################################################
+
+def NSS(gtsAnn, resAnn):
+    """
+    Computer NSS score.
+    :param gtsAnn : ground-truth annotations
+    :param resAnn : predicted saliency map
+    :return score: int : NSS score
+    """
+
+    salMap = resAnn - np.mean(resAnn)
+    if np.max(salMap) > 0:
+        salMap = salMap / np.std(salMap)
+    return np.mean([ salMap[y-1][x-1] for y,x in gtsAnn ])
+
+################################################################################
+
+def KL(saliencyMap, fixationMap):
     # saliencyMap is the saliency map
     # fixationMap is the human fixation map
 
@@ -149,68 +199,7 @@ def KLdiv(saliencyMap, fixationMap):
 
     return (map2 * np.log(map2 / map1)).sum()
 
-
 ######################################################################################
-
-''' created: Zoya Bylinskii, Aug 2014
-    python-version by: Dario Zanca, Jan 2017
-This finds the normalized scanpath saliency (NSS) between two different saliency maps.
-NSS is the average of the response values at human eye positions in a model saliency
-map that has been normalized to have zero mean and unit standard deviation. '''
-
-
-def NSS(saliencyMap, fixationMap):
-    # saliencyMap is the saliency map
-    # fixationMap is the human fixation map (binary matrix)
-
-    # If there are no fixations to predict, return NaN
-    if not fixationMap.any():
-        print('Error: no fixationMap')
-        score = float('nan')
-        return score
-
-    # make sure maps have the same shape
-    from skimage.transform import resize
-    map1 = resize(saliencyMap, np.shape(fixationMap))
-    if not map1.max() == 0:
-        map1 = map1.astype(float) / map1.max()
-
-    # normalize saliency map
-    if not map1.std(ddof=1) == 0:
-        map1 = (map1 - map1.mean()) / map1.std(ddof=1)
-
-    # mean value at fixation locations
-    score = map1[fixationMap > 0].mean()
-
-    return score
-
-
-#########################################################################################
-
-##############################  scanpaths metrics  ######################################
-
-#########################################################################################
-
-''' created: Dario Zanca, July 2017
-    Implementation of the Euclidean distance between two scanpath of the same length. '''
-
-
-def euclidean_distance(human_scanpath, simulated_scanpath):
-    if len(human_scanpath) == len(simulated_scanpath):
-
-        dist = np.zeros(len(human_scanpath))
-        for i in range(len(human_scanpath)):
-            P = human_scanpath[i]
-            Q = simulated_scanpath[i]
-            dist[i] = np.sqrt((P[0] - Q[0]) ** 2 + (P[1] - Q[1]) ** 2)
-        return dist
-
-    else:
-
-        print('Error: The two sequences must have the same length!')
-        return False
-
-################################################################################
 
 slices = [500, 3000, 5000]
 
@@ -222,25 +211,46 @@ gt_path = os.path.join(gt_directory)
 fx_path = os.path.join(fx_directory)
 sm_path = os.path.join(sm_directory)
 
-filenames = [f for f in sorted(os.listdir(sm_path + str(slices[0]))) if f != ".DS_Store"][:10]
+filenames = [f for f in sorted(os.listdir(sm_path + str(slices[0]))) if f != ".DS_Store"]
 
-AUC_score = 0
-KL_score = 0
-NSS_score = 0
-gt_related =[]
-sm_related = []
+SAUC_score = []
+AUC_Judd_score = []
+NSS_score = []
+CC_score = []
+AUC_score = []
+KL_score = []
+
+gt = dict()
+fx = dict()
+sm = dict()
+fx_coord = dict()
+shufMap = np.zeros((480,640))
 
 for filename in tqdm.tqdm(filenames):
     for slice in slices:
-        img_gt = cv2.imread(gt_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE)
-        img_fx = cv2.imread(fx_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE)
-        img_sm = cv2.imread(sm_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE)
+        id = str(slice) + '/' + filename.split('_')[2][:-4]
+        img_gt = cv2.imread(gt_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
+        img_fx = cv2.imread(fx_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
+        img_sm = cv2.imread(sm_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
 
-        AUC_score += AUC_Judd(img_sm, img_fx)
-        KL_score += KLdiv(img_sm, img_gt)
-        NSS_score += NSS(img_sm, img_fx)
+        gt[id] = img_gt
+        fx[id] = img_fx
+        sm[id] = img_sm
+        fx_coord[id] = np.transpose(np.nonzero(img_fx))
+        shufMap += img_fx
+
+for id in tqdm.tqdm(sm.keys()):
+    SAUC_score.append(SAUC(fx_coord[id], sm[id], shufMap))
+    AUC_Judd_score.append(AUC_Judd(sm[id], fx[id]))
+    NSS_score.append(NSS(fx_coord[id], sm[id]))
+    CC_score.append(CC(gt[id], sm[id]))
+    AUC_score.append(AUC(fx_coord[id], sm[id]))
+    KL_score.append(KL(sm[id], gt[id]))
 
 n = len(filenames) * len(slices)
-print("AUC Judd: ", AUC_score / n)
-print("KL: ", KL_score / n)
-print("NSS: ", NSS_score / n)
+print("SAUC:        ", np.mean(SAUC_score))
+print("AUC_Judd:    ", np.mean(AUC_Judd_score))
+print("NSS:         ", np.mean(NSS_score))
+print("CC:          ", np.mean(CC_score))
+print("AUC:         ", np.mean(AUC_score))
+print("KL:          ", np.mean(KL_score))
