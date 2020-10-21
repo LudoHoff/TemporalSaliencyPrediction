@@ -22,7 +22,6 @@ at fixation locations to the total number of fixation locations, false positive 
 correspond to the ratio of saliency map values above threshold at all other locations to
 the total number of posible other locations (non-fixated image pixels) '''
 
-
 def AUC_Judd(saliencyMap, fixationMap, jitter=True):
     # saliencyMap is the saliency map
     # fixationMap is the human fixation map (binary matrix)
@@ -211,7 +210,7 @@ gt_path = os.path.join(gt_directory)
 fx_path = os.path.join(fx_directory)
 sm_path = os.path.join(sm_directory)
 
-filenames = [f for f in sorted(os.listdir(sm_path + str(slices[0]))) if f != ".DS_Store"]
+filenames = [f for f in sorted(os.listdir(sm_path + str(slices[0]))) if f != ".DS_Store"]#[:2000]
 
 SAUC_score = []
 AUC_Judd_score = []
@@ -219,35 +218,28 @@ NSS_score = []
 CC_score = []
 AUC_score = []
 KL_score = []
-
-gt = dict()
-fx = dict()
-sm = dict()
-fx_coord = dict()
 shufMap = np.zeros((480,640))
 
+print('Constructing shuffle map')
 for filename in tqdm.tqdm(filenames):
     for slice in slices:
-        id = str(slice) + '/' + filename.split('_')[2][:-4]
+        shufMap += cv2.imread(fx_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
+
+print('Computing accuracy')
+for filename in tqdm.tqdm(filenames):
+    for slice in slices:
         img_gt = cv2.imread(gt_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
         img_fx = cv2.imread(fx_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
         img_sm = cv2.imread(sm_path + str(slice) + '/' + filename,cv2.IMREAD_GRAYSCALE) / 255
+        fx_coord = np.transpose(np.nonzero(img_fx))
 
-        gt[id] = img_gt
-        fx[id] = img_fx
-        sm[id] = img_sm
-        fx_coord[id] = np.transpose(np.nonzero(img_fx))
-        shufMap += img_fx
+        SAUC_score.append(SAUC(fx_coord, img_sm, shufMap))
+        AUC_Judd_score.append(AUC_Judd(img_sm, img_fx))
+        NSS_score.append(NSS(fx_coord, img_sm))
+        CC_score.append(CC(img_gt, img_sm))
+        AUC_score.append(AUC(fx_coord, img_sm))
+        KL_score.append(KL(img_sm, img_gt))
 
-for id in tqdm.tqdm(sm.keys()):
-    SAUC_score.append(SAUC(fx_coord[id], sm[id], shufMap))
-    AUC_Judd_score.append(AUC_Judd(sm[id], fx[id]))
-    NSS_score.append(NSS(fx_coord[id], sm[id]))
-    CC_score.append(CC(gt[id], sm[id]))
-    AUC_score.append(AUC(fx_coord[id], sm[id]))
-    KL_score.append(KL(sm[id], gt[id]))
-
-n = len(filenames) * len(slices)
 print("SAUC:        ", np.mean(SAUC_score))
 print("AUC_Judd:    ", np.mean(AUC_Judd_score))
 print("NSS:         ", np.mean(NSS_score))
