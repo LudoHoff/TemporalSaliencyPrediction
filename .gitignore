@@ -1,3 +1,4 @@
 /data
 /ckpt
 **/*.ipynb_checkpoints/
+*.pth
