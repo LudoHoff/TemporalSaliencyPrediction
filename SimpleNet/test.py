@@ -7,6 +7,7 @@ import torch.nn as nn
 import pickle
 from torch.distributions.multivariate_normal import MultivariateNormal as Norm
 from torch.autograd import Variable
+from collections import OrderedDict
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -67,8 +68,19 @@ elif args.enc_model == "mobilenet":
 
 if args.enc_model!="mobilenet":
     model = nn.DataParallel(model)
-model.load_state_dict(torch.load(args.model_val_path))
 
+
+state_dict = torch.load(args.model_val_path)
+new_state_dict = OrderedDict()
+
+for k, v in state_dict.items():
+    if 'module' not in k:
+        k = 'module.' + k
+    else:
+        k = k.replace('features.module.', 'module.features.')
+    new_state_dict[k] = v
+
+model.load_state_dict(new_state_dict)
 model = model.to(device)
 
 val_img_ids = os.listdir(args.val_img_dir)
