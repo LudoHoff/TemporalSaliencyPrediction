@@ -13,6 +13,8 @@ from tqdm import tqdm
 from scipy import ndimage
 from scipy.spatial import distance
 
+np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
+
 IMAGE_PATH = '../data/images/'
 FIXATION_PATH = '../data/fixations/'
 GIF_PATH = '../data/gifs/'
@@ -20,7 +22,7 @@ GIF_PATH = '../data/gifs/'
 TRAIN_PATH = 'train/'
 VAL_PATH = 'val/'
 
-GIF_SAMPLES = 2
+GIF_SAMPLES = 300
 W = 640
 H = 480
 TIMESPAN = 5000
