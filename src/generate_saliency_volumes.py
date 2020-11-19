@@ -1,16 +1,5 @@
 from utils import *
 
-@jit
-def convolve_space(temporal_maps, fix_timestamps):
-    for ts in np.unique([ts for ts, _ in fix_timestamps]):
-        temporal_maps[i,ts-1] = ndimage.filters.gaussian_filter(temporal_maps[i,ts-1], 25)
-
-@jit
-def convolve_time(temporal_maps):
-    for x in range(W):
-        for y in range(H):
-            temporal_maps[i,:,y,x] = ndimage.gaussian_filter1d(temporal_maps[i,:,y,x], 2, 0)
-
 filenames = get_filenames(FIXATION_PATH + TRAIN_PATH)[0:2]
 
 print("Parsing fixations...")
@@ -27,8 +16,13 @@ for i, saliency_volume in enumerate(saliency_volumes):
     for ts, (x, y) in fix_timestamps:
         temporal_maps[i,ts-1,y-1,x-1] = 1
 
-    convolve_space(temporal_maps, fix_timestamps)
-    convolve_time(temporal_maps, fix_timestamps)
+    for ts in np.unique([ts for ts, _ in fix_timestamps]):
+        temporal_maps[i,ts-1] = ndimage.filters.gaussian_filter(temporal_maps[i,ts-1], 25)
+
+    for x in range(W):
+        for y in range(H):
+            temporal_maps[i,:,y,x] = ndimage.gaussian_filter1d(temporal_maps[i,:,y,x], 2, 0)
+            
     temporal_maps[i] /= temporal_maps[i].max()
 
 np.save('../data/saliency_volumes_train.npy', temporal_maps)
