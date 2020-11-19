@@ -24,7 +24,7 @@ GIF_SAMPLES = 2
 W = 640
 H = 480
 TIMESPAN = 5000
-MAX_PIXEL_DISTANCE = np.linalg.norm([W, H])
+MAX_PIXEL_DISTANCE = 800
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 
 def get_filenames(path):
@@ -35,8 +35,6 @@ def get_saliency_volumes(filenames,
                          path_prefix=TRAIN_PATH,
                          etw=ESTIMATED_TIMESTAMP_WEIGHT, progress_bar=True):
     saliency_volumes = []
-    errors = []
-
     filenames = tqdm(filenames) if progress_bar else filenames
 
     for filename in filenames:
@@ -63,10 +61,9 @@ def get_saliency_volumes(filenames,
             for fixation in observer:
                 distances = distance.cdist([fixation], locations[i], 'euclidean')[0][..., np.newaxis]
                 time_diffs = abs(timestamps[i] - est_timestamp)
-                min_idx = np.argmin(etw * time_diffs + distances)
+                min_idx = int(np.argmin(etw * time_diffs + distances)[0])
 
                 fix_timestamps.append([min(timestamps[i][min_idx][0], TIMESPAN), fixation.tolist()])
-                errors.append(distances[min_idx])
                 est_timestamp += fix_time
 
             if (len(observer) > 0):
@@ -74,7 +71,7 @@ def get_saliency_volumes(filenames,
 
         saliency_volumes.append(saliency_volume)
 
-    return saliency_volumes, np.mean(errors) / MAX_PIXEL_DISTANCE
+    return saliency_volumes
 
 def get_heat_image(image):
     return cv2.cvtColor(cv2.applyColorMap(np.uint8(255 * image), cv2.COLORMAP_HOT), cv2.COLOR_BGR2RGB)

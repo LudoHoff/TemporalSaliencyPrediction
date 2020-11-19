@@ -40,7 +40,6 @@ args = parser.parse_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
 if args.enc_model == "pnas":
     print("PNAS Model")
     from model import PNASModel
@@ -120,7 +119,7 @@ def validate(model, loader, device, args):
 if args.validate:
 	val_img_dir = args.dataset_dir + "images/val/"
 	val_gt_dir = args.dataset_dir + "weighted_maps/val/"
-	val_fix_dir = args.dataset_dir + "weighted_fixations/val/"
+	val_fix_dir = args.dataset_dir + "fixation_maps/val/"
 
 	val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
 	val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
