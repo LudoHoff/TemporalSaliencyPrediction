@@ -1,6 +1,6 @@
 from utils import *
 
-filenames = np.random.choice(get_filenames(FIXATION_PATH + TRAIN_PATH), GIF_SAMPLES, replace=False)
+filenames = cp.random.choice(get_filenames(FIXATION_PATH + TRAIN_PATH), GIF_SAMPLES, replace=False)
 images = []
 
 print("Reading images...")
@@ -12,15 +12,15 @@ saliency_volumes, _ = get_saliency_volumes(filenames, progress_bar=True)
 
 print("Generating saliency volumes...")
 for i, saliency_volume in tqdm(enumerate(saliency_volumes)):
-    fix_timestamps = np.array(sorted([fixation for fix_timestamps in saliency_volume
+    fix_timestamps = cp.array(sorted([fixation for fix_timestamps in saliency_volume
                                       for fixation in fix_timestamps], key=lambda x: (x[0])))
     fix_timestamps = [(int(ts / 100), (x, y)) for (ts, (x, y)) in fix_timestamps]
-    temporal_map = np.zeros((50,H,W))
+    temporal_map = cp.zeros((50,H,W))
 
     for ts, (x, y) in fix_timestamps:
         temporal_map[ts-1,y-1,x-1] = 1
 
-    for ts in np.unique([ts for ts, _ in fix_timestamps]):
+    for ts in cp.unique([ts for ts, _ in fix_timestamps]):
         temporal_map[ts-1] = ndimage.filters.gaussian_filter(temporal_map[ts-1], 30)
 
     for x in range(W):
