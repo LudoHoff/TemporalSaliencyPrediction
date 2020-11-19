@@ -1,8 +1,8 @@
 from utils import *
 
-@jit(target ="cuda")
+@jit
 def generate_volumes(temporal_maps, saliency_volumes):
-    for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
+    for i, saliency_volume in enumerate(saliency_volumes):
         fix_timestamps = sorted([fixation for fix_timestamps in saliency_volume
                                           for fixation in fix_timestamps], key=lambda x: x[0])
         fix_timestamps = [(int(ts / 200), (x, y)) for (ts, (x, y)) in fix_timestamps]

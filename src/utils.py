@@ -14,6 +14,11 @@ from scipy import ndimage
 from scipy.spatial import distance
 from numba import jit, cuda
 
+from numba.errors import NumbaDeprecationWarning
+import warnings
+
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+
 IMAGE_PATH = '../data/images/'
 FIXATION_PATH = '../data/fixations/'
 GIF_PATH = '../data/gifs/'
@@ -31,7 +36,7 @@ ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 def get_filenames(path):
     return [file for file in sorted(os.listdir(path)) if fnmatch.fnmatch(file, 'COCO_*')]
 
-@jit(target ="cuda")
+@jit
 def get_saliency_volumes(filenames,
                          path_prefix=TRAIN_PATH,
                          etw=ESTIMATED_TIMESTAMP_WEIGHT, progress_bar=True):
