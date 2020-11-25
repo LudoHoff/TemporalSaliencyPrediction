@@ -10,7 +10,6 @@ import matplotlib.animation as animation
 
 from matplotlib.image import imread
 from tqdm import tqdm
-from scipy import ndimage
 from scipy.spatial import distance
 
 IMAGE_PATH = '../data/images/'
