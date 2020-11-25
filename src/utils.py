@@ -2,9 +2,9 @@ import fnmatch
 import os
 import random
 import cv2
+import cupy as np
 
 import scipy.io as sio
-import cupy.numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
@@ -60,7 +60,7 @@ def get_saliency_volumes(filenames,
             for fixation in observer:
                 distances = distance.cdist([fixation], locations[i], 'euclidean')[0][..., np.newaxis]
                 time_diffs = abs(timestamps[i] - est_timestamp)
-                min_idx = np.argmin(etw * time_diffs + distances)
+                min_idx = (etw * time_diffs + distances).argmin()
 
                 fix_timestamps.append([min(timestamps[i][min_idx][0], TIMESPAN), fixation.tolist()])
                 est_timestamp += fix_time
