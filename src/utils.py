@@ -2,7 +2,7 @@ import fnmatch
 import os
 import random
 import cv2
-import cupy as np
+import numpy as np
 
 import scipy.io as sio
 import matplotlib.pyplot as plt
@@ -90,8 +90,8 @@ def animate(maps, image, normalized=False):
     formatted_images = []
 
     for map in maps:
-        heatmap, image_heatmap = format_image(map, image, np.max(map) if normalized else max_value)
-        im = plt.imshow(np.concatenate((heatmap, image_heatmap), 1), animated=True)
+        heatmap = map / np.max(map)
+        im = plt.imshow(heatmap, animated=True)
         formatted_images.append([im])
 
     return animation.ArtistAnimation(fig, formatted_images, interval=1, blit=True, repeat_delay=1000)

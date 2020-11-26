@@ -1,21 +1,23 @@
 from utils import *
-import cusignal
+#from scipy import ndimage
+import gputools as gpu
+
+from math import pi, sqrt, exp
+
+def gauss(n, sigma):
+    r = range(-int(n/2),int(n/2)+1)
+    return [1 / (sigma * sqrt(2*pi)) * exp(-float(x)**2/(2*sigma**2)) for x in r]
 
 filenames = get_filenames(FIXATION_PATH + TRAIN_PATH)[0:2]
-
-images = []
-
-print("Reading images...")
-for filename in tqdm(filenames):
-    images.append(imread(IMAGE_PATH + TRAIN_PATH + filename[:-3] + 'jpg'))
 
 print("Parsing fixations...")
 saliency_volumes = get_saliency_volumes(filenames, progress_bar=True)
 
 print("Generating saliency volumes...")
-temporal_maps = np.zeros((len(saliency_volumes),25,H,W))
-kernel2D = np.outer(cusignal.gaussian(201, 25), cusignal.gaussian(201, 25))
-kernel1D = cusignal.gaussian(17, 2)
+temporal_maps = np.zeros((len(filenames),25,H,W))
+
+kernel1D = gauss(17, 2)
+kernel2D = gauss(101, 25)
 
 for i, saliency_volume in enumerate(saliency_volumes):
     fix_timestamps = sorted([fixation for fix_timestamps in saliency_volume
@@ -26,16 +28,14 @@ for i, saliency_volume in enumerate(saliency_volumes):
         temporal_maps[i,ts-1,y-1,x-1] = 1
 
     for ts in np.unique([ts for ts, _ in fix_timestamps]):
-        #temporal_maps[i,ts-1] = ndimage.filters.gaussian_filter(temporal_maps[i,ts-1], 25)
-        temporal_maps[i,ts-1] = cusignal.convolve(temporal_maps[i,ts-1], kernel2D, mode='same')
+        temporal_maps[i,ts-1] = gpu.convolve_sep2(temporal_maps[i,ts-1], kernel2D, kernel2D)
+        #ndimage.filters.gaussian_filter(temporal_maps[i,ts-1], 25)
 
     for x in range(W):
         for y in range(H):
-            #temporal_maps[i,:,y,x] = ndimage.gaussian_filter1d(temporal_maps[i,:,y,x], 2, 0)
-            temporal_maps[i,:,y,x] = cusignal.convolve(temporal_maps[i,:,y,x], kernel1D, mode='same')
+            temporal_maps[i,:,y,x] = gpu.convolve(temporal_maps[i,:,y,x], kernel1D)
+            #ndimage.gaussian_filter1d(temporal_maps[i,:,y,x], 2, 0)
 
     temporal_maps[i] /= temporal_maps[i].max()
-    ani = animate(temporal_maps[i], images[i], False)
-    ani.save(GIF_PATH + TRAIN_PATH + filenames[i][:-3] + 'gif', writer=animation.PillowWriter(fps=10))
 
 np.save('../data/saliency_volumes_train.npy', temporal_maps)
