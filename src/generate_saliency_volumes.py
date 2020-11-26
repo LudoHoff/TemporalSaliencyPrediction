@@ -16,8 +16,8 @@ saliency_volumes = get_saliency_volumes(filenames, progress_bar=True)
 print("Generating saliency volumes...")
 temporal_maps = np.zeros((len(filenames),25,H,W))
 
-kernel1D = gauss(17, 2)
-kernel2D = gauss(101, 25)
+kernel1D = np.array(gauss(17, 2))
+kernel2D = np.array(gauss(101, 25))
 
 for i, saliency_volume in enumerate(saliency_volumes):
     fix_timestamps = sorted([fixation for fix_timestamps in saliency_volume
