@@ -36,9 +36,9 @@ class GaussianBlur2D(nn.Module):
     def forward(self, x):
         pad = int(self.size/2)
         temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, 1, -1, 1), padding=pad)
-        temp = temp[:,:,pad:-pad]
+        temp = temp[:,:,pad:-pad,:,pad:-pad]
         temp = F.conv1d(temp, self.weight.view(1, 1, 1, 1, -1), padding=pad)
-        return temp[:,:,pad:-pad]
+        return temp[:,:,pad:-pad,pad:-pad]
 
 
 filenames = get_filenames(FIXATION_PATH + TRAIN_PATH)[0:VOL_SAMPLES]
@@ -64,4 +64,4 @@ for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
     temporal_maps[i] = conv1D.forward(temporal_maps[i])
     temporal_maps[i] /= temporal_maps[i].max()
 
-np.save('../data/saliency_volumes_train.npy', temporal_maps.cpu().detach().numpy())
+np.savez_compressed('../data/saliency_volumes_train.npz', volumes=temporal_maps.cpu().detach().numpy())
