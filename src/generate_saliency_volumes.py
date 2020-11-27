@@ -1,7 +1,9 @@
 from utils import *
+import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import lzma
 from math import pi, sqrt, exp
 
 torch.backends.cudnn.benchmark = True
@@ -10,7 +12,6 @@ VOL_SAMPLES = 100
 def gauss(n, sigma):
     r = range(-int(n/2),int(n/2)+1)
     return [1 / (sigma * sqrt(2*pi)) * exp(-float(x)**2/(2*sigma**2)) for x in r]
-
 
 class GaussianBlur1D(nn.Module):
     def __init__(self):
@@ -64,4 +65,6 @@ for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
     temporal_maps[i] = conv1D.forward(temporal_maps[i])
     temporal_maps[i] /= temporal_maps[i].max()
 
-np.savez_compressed('../data/saliency_volumes_train.npz', volumes=temporal_maps.cpu().detach().numpy())
+#np.savez_compressed('../data/saliency_volumes_train.npz', volumes=temporal_maps.cpu().detach().numpy())
+print("Saving saliency volumes...")
+pickle.dump(temporal_maps, lzma.open('../data/saliency_volumes_train.pkl.lzma', 'wb'))
