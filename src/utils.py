@@ -12,6 +12,11 @@ from matplotlib.image import imread
 from tqdm import tqdm
 from scipy.spatial import distance
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from math import pi, sqrt, exp
+
 IMAGE_PATH = '../data/images/'
 FIXATION_PATH = '../data/fixations/'
 GIF_PATH = '../data/gifs/'
@@ -29,10 +34,10 @@ ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 def get_filenames(path):
     return [file for file in sorted(os.listdir(path)) if fnmatch.fnmatch(file, 'COCO_*')]
 
-def get_saliency_volumes(filenames,
-                         path_prefix=TRAIN_PATH,
-                         etw=ESTIMATED_TIMESTAMP_WEIGHT, progress_bar=True):
-    saliency_volumes = []
+def parse_fixations(filenames,
+                    path_prefix=TRAIN_PATH,
+                    etw=ESTIMATED_TIMESTAMP_WEIGHT, progress_bar=True):
+    fixation_volumes = []
     filenames = tqdm(filenames) if progress_bar else filenames
 
     for filename in filenames:
@@ -50,7 +55,7 @@ def get_saliency_volumes(filenames,
             fixations.append(mat["gaze"][i][0][2])
 
         # 2. Matching fixations with timestamps
-        saliency_volume = []
+        fixation_volume = []
         for i, observer in enumerate(fixations):
             fix_timestamps = []
             fix_time = TIMESPAN / (len(observer) + 1)
@@ -65,11 +70,56 @@ def get_saliency_volumes(filenames,
                 est_timestamp += fix_time
 
             if (len(observer) > 0):
-                saliency_volume.append(fix_timestamps)
+                fixation_volume.append(fix_timestamps)
 
-        saliency_volumes.append(saliency_volume)
+        fixation_volumes.append(fixation_volume)
 
-    return saliency_volumes
+    return fixation_volumes
+
+def gauss(n, sigma):
+    r = range(-int(n/2),int(n/2)+1)
+    return [1 / (sigma * sqrt(2*pi)) * exp(-float(x)**2/(2*sigma**2)) for x in r]
+
+class GaussianBlur1D(nn.Module):
+    def __init__(self):
+        super(GaussianBlur1D, self).__init__()
+        self.size = 17
+        kernel = gauss(self.size, 2)
+        kernel = torch.cuda.FloatTensor(kernel)
+        self.weight = nn.Parameter(data=kernel, requires_grad=False)
+ 
+    def forward(self, x):
+        pad = int(self.size/2)
+        temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, -1, 1, 1), padding=pad)
+        return temp[:,:,:,pad:-pad,pad:-pad]
+
+class GaussianBlur2D(nn.Module):
+    def __init__(self):
+        super(GaussianBlur2D, self).__init__()
+        self.size = 201
+        kernel = gauss(self.size, 25)
+        kernel = torch.cuda.FloatTensor(kernel)
+        self.weight = nn.Parameter(data=kernel, requires_grad=False)
+ 
+    def forward(self, x):
+        pad = int(self.size/2)
+        temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, 1, -1, 1), padding=pad)
+        temp = temp[:,:,pad:-pad,:,pad:-pad]
+        temp = F.conv1d(temp, self.weight.view(1, 1, 1, 1, -1), padding=pad)
+        return temp[:,:,pad:-pad,pad:-pad]
+
+def get_saliency_volume(fixation_volume, conv1D, conv2D):
+    fix_timestamps = sorted([fixation for fix_timestamps in fixation_volume
+                                      for fixation in fix_timestamps], key=lambda x: x[0])
+    fix_timestamps = [(int(ts / 200), (x, y)) for (ts, (x, y)) in fix_timestamps]
+    fixation_map = torch.zeros([25,H,W], dtype=torch.float).cuda()
+
+    for ts, (x, y) in fix_timestamps:
+        fixation_map[ts-1,y-1,x-1] = 1
+
+    saliency_volume = conv2D.forward(fixation_map)
+    saliency_volume = conv1D.forward(saliency_volume)
+    return fixation_map, saliency_volume / saliency_volume.max()
 
 def get_heat_image(image):
     return cv2.cvtColor(cv2.applyColorMap(np.uint8(255 * image), cv2.COLORMAP_HOT), cv2.COLOR_BGR2RGB)

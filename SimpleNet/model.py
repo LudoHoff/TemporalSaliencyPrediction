@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 sys.path.append('../PNAS/')
-from PNASnet import *
+from net import *
 from genotypes import PNASNet
 
 class PNASModel(nn.Module):
@@ -16,7 +16,7 @@ class PNASModel(nn.Module):
         self.pnas = NetworkImageNet(216, 1001, 12, False, PNASNet)
         if load_weight:
             self.pnas.load_state_dict(torch.load(self.path))
-        
+
         for param in self.pnas.parameters():
             param.requires_grad = train_enc
 
@@ -24,7 +24,7 @@ class PNASModel(nn.Module):
         self.drop_path_prob = 0
 
         self.linear_upsampling = nn.UpsamplingBilinear2d(scale_factor=2)
-        
+
         self.deconv_layer0 = nn.Sequential(
             nn.Conv2d(in_channels = 4320, out_channels = 512, kernel_size=3, padding=1, bias = True),
             nn.ReLU(inplace=True),
@@ -57,7 +57,7 @@ class PNASModel(nn.Module):
             nn.Conv2d(in_channels = 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
-    
+
     def forward(self, images):
         batch_size = images.size(0)
 
@@ -77,18 +77,106 @@ class PNASModel(nn.Module):
                 out4 = s1
             if i==11:
                 out5 = s1
-        
+
         out5 = self.deconv_layer0(out5)
 
         x = torch.cat((out5,out4), 1)
         x = self.deconv_layer1(x)
-        
+
         x = torch.cat((x,out3), 1)
         x = self.deconv_layer2(x)
 
         x = torch.cat((x,out2), 1)
         x = self.deconv_layer3(x)
-        
+
+        x = torch.cat((x,out1), 1)
+        x = self.deconv_layer4(x)
+        x = self.deconv_layer5(x)
+        x = x.squeeze(1)
+        return x
+
+class PNASVolModel(nn.Module):
+
+    def __init__(self, num_channels=3, train_enc=False, load_weight=1):
+        super(PNASVolModel, self).__init__()
+        self.path = '../PNAS/PNASNet-5_Large.pth'
+
+        self.pnas = NetworkImageNet(216, 1001, 12, False, PNASNet)
+        if load_weight:
+            self.pnas.load_state_dict(torch.load(self.path))
+
+        for param in self.pnas.parameters():
+            param.requires_grad = train_enc
+
+        self.padding = nn.ConstantPad2d((0,1,0,1),0)
+        self.drop_path_prob = 0
+
+        self.linear_upsampling = nn.UpsamplingBilinear2d(scale_factor=2)
+
+        self.deconv_layer0 = nn.Sequential(
+            nn.Conv2d(in_channels = 4320, out_channels = 512, kernel_size=3, padding=1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+
+        self.deconv_layer1 = nn.Sequential(
+            nn.Conv2d(in_channels = 512+2160, out_channels = 256, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer2 = nn.Sequential(
+            nn.Conv2d(in_channels = 1080+256, out_channels = 270, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer3 = nn.Sequential(
+            nn.Conv2d(in_channels = 540, out_channels = 96, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer4 = nn.Sequential(
+            nn.Conv2d(in_channels = 192, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer5 = nn.Sequential(
+            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            nn.Sigmoid()
+        )
+
+    def forward(self, images, volumes):
+        batch_size = images.size(0)
+
+        s0 = self.pnas.conv0(images)
+        s0 = self.pnas.conv0_bn(s0)
+        out1 = self.padding(s0)
+
+        s1 = self.pnas.stem1(s0, s0, self.drop_path_prob)
+        out2 = s1
+        s0, s1 = s1, self.pnas.stem2(s0, s1, 0)
+
+        for i, cell in enumerate(self.pnas.cells):
+            s0, s1 = s1, cell(s0, s1, 0)
+            if i==3:
+                out3 = s1
+            if i==7:
+                out4 = s1
+            if i==11:
+                out5 = s1
+
+        out5 = self.deconv_layer0(out5)
+
+        x = torch.cat((out5,out4), 1)
+        x = self.deconv_layer1(x)
+
+        x = torch.cat((x,out3), 1)
+        x = self.deconv_layer2(x)
+
+        x = torch.cat((x,out2), 1)
+        x = self.deconv_layer3(x)
+
         x = torch.cat((x,out1), 1)
         x = self.deconv_layer4(x)
         x = self.deconv_layer5(x)
@@ -170,7 +258,7 @@ class DenseModel(nn.Module):
         out4 = self.conv_layer3(out3)
         out5 = self.conv_layer4(out4)
 
-        
+
         assert out1.size() == (batch_size, 96, 128, 128)
         assert out2.size() == (batch_size, 192, 64, 64)
         assert out3.size() == (batch_size, 384, 32, 32)
@@ -187,7 +275,7 @@ class DenseModel(nn.Module):
 
         x = torch.cat((x,out2), 1)
         x = self.deconv_layer3(x)
-        
+
         x = torch.cat((x,out1), 1)
         x = self.deconv_layer4(x)
         x = self.deconv_layer5(x)
@@ -201,10 +289,10 @@ class ResNetModel(nn.Module):
 
         self.num_channels = num_channels
         self.resnet = models.resnet50(pretrained=bool(load_weight))
-        
+
         for param in self.resnet.parameters():
             param.requires_grad = train_enc
-        
+
         self.conv_layer1 = nn.Sequential(
             self.resnet.conv1,
             self.resnet.bn1,
@@ -250,7 +338,7 @@ class ResNetModel(nn.Module):
             nn.Conv2d(in_channels = 64, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
-    
+
     def forward(self, images):
         batch_size = images.size(0)
 
@@ -267,7 +355,7 @@ class ResNetModel(nn.Module):
         assert x.size() == (batch_size, 2048, 16, 16)
         x = self.deconv_layer1(x)
         assert x.size() == (batch_size, 512, 32, 32)
-        
+
         x = torch.cat((x, out3), 1)
         assert x.size() == (batch_size, 1024, 32, 32)
         x = self.deconv_layer2(x)
@@ -277,7 +365,7 @@ class ResNetModel(nn.Module):
         assert x.size() == (batch_size, 512, 64, 64)
         x = self.deconv_layer3(x)
         assert x.size() == (batch_size, 64, 128, 128)
-        
+
         x = torch.cat((x, out1), 1)
         assert x.size() == (batch_size, 128, 128, 128)
         x = self.deconv_layer4(x)
@@ -294,10 +382,10 @@ class VGGModel(nn.Module):
 
         self.num_channels = num_channels
         self.vgg = models.vgg16(pretrained=bool(load_weight)).features
-        
+
         for param in self.vgg.parameters():
             param.requires_grad = train_enc
-        
+
         self.conv_layer1 = self.vgg[:7]
         self.conv_layer2 = self.vgg[7:12]
         self.conv_layer3 = self.vgg[12:19]
@@ -305,7 +393,7 @@ class VGGModel(nn.Module):
         self.conv_layer5 = self.vgg[24:]
 
         self.linear_upsampling = nn.UpsamplingBilinear2d(scale_factor=2)
-        
+
         self.deconv_layer1 = nn.Sequential(
             nn.Conv2d(in_channels = 1024, out_channels = 512, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
@@ -332,7 +420,7 @@ class VGGModel(nn.Module):
             nn.Conv2d(in_channels = 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
-    
+
     def forward(self, images):
         batch_size = images.size(0)
 
@@ -349,7 +437,7 @@ class VGGModel(nn.Module):
         assert x.size() == (batch_size, 1024, 16, 16)
         x = self.deconv_layer1(x)
         assert x.size() == (batch_size, 512, 32, 32)
-        
+
         x = torch.cat((x, out3), 1)
         assert x.size() == (batch_size, 1024, 32, 32)
         x = self.deconv_layer2(x)
@@ -359,7 +447,7 @@ class VGGModel(nn.Module):
         assert x.size() == (batch_size, 512, 64, 64)
         x = self.deconv_layer3(x)
         assert x.size() == (batch_size, 128, 128, 128)
-        
+
         x = torch.cat((x, out1), 1)
         assert x.size() == (batch_size, 256, 128, 128)
         x = self.deconv_layer4(x)
@@ -429,7 +517,7 @@ class MobileNetV2(nn.Module):
         out4 = self.conv_layer4(out3)
         out5 = self.conv_layer5(out4)
 
-        
+
         assert out1.size() == (batch_size, 16, 128, 128)
         assert out2.size() == (batch_size, 24, 64, 64)
         assert out3.size() == (batch_size, 32, 32, 32)
@@ -446,7 +534,7 @@ class MobileNetV2(nn.Module):
 
         x = torch.cat((x,out2), 1)
         x = self.deconv_layer3(x)
-        
+
         x = torch.cat((x,out1), 1)
         x = self.deconv_layer4(x)
         x = self.deconv_layer5(x)
