@@ -1,5 +1,4 @@
 from utils import *
-#from scipy import ndimage
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,10 +31,15 @@ class GaussianBlur2D(nn.Module):
         self.size = 201
         kernel = gauss(self.size, 25)
         kernel = torch.cuda.FloatTensor(kernel)
-        kernel = torch.outer(kernel, kernel).unsqueeze(0).unsqueeze(0)
         self.weight = nn.Parameter(data=kernel, requires_grad=False)
  
     def forward(self, x):
+        pad = int(self.size/2)
+        temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, 1, -1, 1), padding=pad)
+        temp = temp[:,:,pad:-pad]
+        temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, 1, 1, -1), padding=pad)
+        return temp[:,:,pad:-pad]
+
         return F.conv2d(x.unsqueeze(0).unsqueeze(0), self.weight, padding=int(self.size/2))
 
 
@@ -58,10 +62,8 @@ for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
     for ts, (x, y) in fix_timestamps:
         temporal_maps[i,ts-1,y-1,x-1] = 1
 
-    for ts in np.unique([ts for ts, _ in fix_timestamps]):
-        temporal_maps[i,ts-1] = conv2D.forward(temporal_maps[i,ts-1])
-
-    temporal_maps[i,:] = conv1D(temporal_maps[i,:])
+    temporal_maps[i] = conv2D.forward(temporal_maps[i])
+    temporal_maps[i] = conv1D.forward(temporal_maps[i])
     temporal_maps[i] /= temporal_maps[i].max()
 
 np.save('../data/saliency_volumes_train.npy', temporal_maps.cpu().detach().numpy())
