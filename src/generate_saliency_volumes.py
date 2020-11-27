@@ -37,10 +37,8 @@ class GaussianBlur2D(nn.Module):
         pad = int(self.size/2)
         temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, 1, -1, 1), padding=pad)
         temp = temp[:,:,pad:-pad]
-        temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, 1, 1, -1), padding=pad)
+        temp = F.conv1d(temp, self.weight.view(1, 1, 1, 1, -1), padding=pad)
         return temp[:,:,pad:-pad]
-
-        return F.conv2d(x.unsqueeze(0).unsqueeze(0), self.weight, padding=int(self.size/2))
 
 
 filenames = get_filenames(FIXATION_PATH + TRAIN_PATH)[0:VOL_SAMPLES]
