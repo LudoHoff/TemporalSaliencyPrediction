@@ -3,11 +3,11 @@ import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import lzma
+import bz2
 from math import pi, sqrt, exp
 
 torch.backends.cudnn.benchmark = True
-VOL_SAMPLES = 100
+VOL_SAMPLES = 2
 
 def gauss(n, sigma):
     r = range(-int(n/2),int(n/2)+1)
@@ -64,7 +64,9 @@ for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
     temporal_maps[i] = conv2D.forward(temporal_maps[i])
     temporal_maps[i] = conv1D.forward(temporal_maps[i])
     temporal_maps[i] /= temporal_maps[i].max()
+#    ani = animate(temporal_maps[i].cpu().detach().numpy(), np.zeros((H,W)), False)
+#    ani.save('../' + filenames[i][:-3] + 'gif', writer=animation.PillowWriter(fps=10))
 
-#np.savez_compressed('../data/saliency_volumes_train.npz', volumes=temporal_maps.cpu().detach().numpy())
-print("Saving saliency volumes...")
-pickle.dump(temporal_maps.cpu().detach().numpy(), lzma.open('../data/saliency_volumes_train.pkl.lzma', 'wb'))
+np.savez_compressed('../data/saliency_volumes_train.npz', volumes=temporal_maps.cpu().detach().numpy())
+#print("Saving saliency volumes...")
+#pickle.dump(temporal_maps.cpu().detach().numpy(), bz2.open('../data/saliency_volumes_train.pkl.bz2', 'wb'))
