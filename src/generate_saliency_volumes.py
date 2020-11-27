@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from math import pi, sqrt, exp
 
 torch.backends.cudnn.benchmark = True
+VOL_SAMPLES = 100
 
 def gauss(n, sigma):
     r = range(-int(n/2),int(n/2)+1)
@@ -28,7 +29,7 @@ class GaussianBlur1D(nn.Module):
 class GaussianBlur2D(nn.Module):
     def __init__(self):
         super(GaussianBlur2D, self).__init__()
-        self.size = 101
+        self.size = 201
         kernel = gauss(self.size, 25)
         kernel = torch.cuda.FloatTensor(kernel)
         kernel = torch.outer(kernel, kernel).unsqueeze(0).unsqueeze(0)
@@ -38,19 +39,13 @@ class GaussianBlur2D(nn.Module):
         return F.conv2d(x.unsqueeze(0).unsqueeze(0), self.weight, padding=int(self.size/2))
 
 
-filenames = get_filenames(FIXATION_PATH + TRAIN_PATH)[0:100]
-
-images = []
-
-print("Reading images...")
-for filename in tqdm(filenames):
-    images.append(imread(IMAGE_PATH + TRAIN_PATH + filename[:-3] + 'jpg'))
+filenames = get_filenames(FIXATION_PATH + TRAIN_PATH)[0:VOL_SAMPLES]
 
 print("Parsing fixations...")
 saliency_volumes = get_saliency_volumes(filenames, progress_bar=True)
 
 print("Generating saliency volumes...")
-temporal_maps = torch.zeros([len(filenames),50,H,W], dtype=torch.float).cuda()
+temporal_maps = torch.zeros([len(filenames),25,H,W], dtype=torch.float).cuda()
 
 conv1D = GaussianBlur1D().cuda()
 conv2D = GaussianBlur2D().cuda()
@@ -65,18 +60,8 @@ for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
 
     for ts in np.unique([ts for ts, _ in fix_timestamps]):
         temporal_maps[i,ts-1] = conv2D.forward(temporal_maps[i,ts-1])
-        #temporal_maps[i,ts-1] = (temporal_maps[i,ts-1], kernel2D, kernel2D)
-        #ndimage.filters.gaussian_filter(temporal_maps[i,ts-1], 25)
 
-    #for x in range(W):
-    #    for y in range(H):
     temporal_maps[i,:] = conv1D(temporal_maps[i,:])
-            #temporal_maps[i,:,y,x] = gpu.convolve(temporal_maps[i,:,y,x], kernel1D)
-            #ndimage.gaussian_filter1d(temporal_maps[i,:,y,x], 2, 0)
-
     temporal_maps[i] /= temporal_maps[i].max()
-
-#    ani = animate(temporal_maps[i].cpu().detach().numpy().astype(np.float), images[i], False)
-#    ani.save('../data/' + filenames[i][:-3] + 'gif', writer=animation.PillowWriter(fps=10))
 
 np.save('../data/saliency_volumes_train.npy', temporal_maps.cpu().detach().numpy())
