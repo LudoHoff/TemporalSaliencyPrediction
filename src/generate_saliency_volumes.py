@@ -67,4 +67,4 @@ for i, saliency_volume in enumerate(tqdm(saliency_volumes)):
 
 #np.savez_compressed('../data/saliency_volumes_train.npz', volumes=temporal_maps.cpu().detach().numpy())
 print("Saving saliency volumes...")
-pickle.dump(temporal_maps, lzma.open('../data/saliency_volumes_train.pkl.lzma', 'wb'))
+pickle.dump(temporal_maps.cpu().detach().numpy(), lzma.open('../data/saliency_volumes_train.pkl.lzma', 'wb'))
