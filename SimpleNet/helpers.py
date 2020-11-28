@@ -77,7 +77,7 @@ class GaussianBlur1D(nn.Module):
  
     def forward(self, x):
         pad = int(self.size/2)
-        temp = F.conv1d(x.unsqueeze(0).unsqueeze(0), self.weight.view(1, 1, -1, 1, 1), padding=pad)
+        temp = F.conv1d(x, self.weight.view(1, 1, -1, 1, 1), padding=pad)
         return temp[:,:,:,pad:-pad,pad:-pad]
 
 class GaussianBlur2D(nn.Module):

@@ -82,11 +82,11 @@ class SaliconVolDataset(DataLoader):
         img = self.img_transform(img)
         if np.max(gt) > 1.0:
             gt = gt / 255.0
-        fixation_map = (fixation_map > 0.5).astype('float')
+        #fixation_map = (fixation_map > 0.5).astype('float')
 
         assert np.min(gt)>=0.0 and np.max(gt)<=1.0
-        assert np.min(fixation_map)==0.0 and np.max(fixation_map)==1.0
-        return img, torch.FloatTensor(gt), saliency_volume, torch.FloatTensor(fixation_map)
+        #assert np.min(fixation_map)==0.0 and np.max(fixation_map)==1.0
+        return img, torch.FloatTensor(gt), saliency_volume, fixation_map
 
     def __len__(self):
         return len(self.img_ids)
