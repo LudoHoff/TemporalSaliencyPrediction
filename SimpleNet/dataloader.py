@@ -61,10 +61,8 @@ class SaliconVolDataset(DataLoader):
                                 [0.5, 0.5, 0.5])
         ])
 
-        self.filenames = get_filenames(fix_dir)
-
         print("Parsing fixations...")
-        self.fixation_volumes = parse_fixations(self.filenames, progress_bar=True)
+        self.fixation_volumes = parse_fixations(self.img_ids, path_prefix=fix_dir, progress_bar=True)
         self.conv1D = GaussianBlur1D().cuda()
         self.conv2D = GaussianBlur2D().cuda()
 
@@ -72,7 +70,6 @@ class SaliconVolDataset(DataLoader):
         img_id = self.img_ids[idx]
         img_path = os.path.join(self.img_dir, img_id + '.jpg')
         gt_path = os.path.join(self.gt_dir, img_id + self.exten)
-        fix_path = os.path.join(self.fix_dir, img_id + self.exten)
 
         img = Image.open(img_path).convert('RGB')
 
@@ -80,7 +77,7 @@ class SaliconVolDataset(DataLoader):
         gt = gt.astype('float')
         gt = cv2.resize(gt, (256,256))
 
-        fixation_map, saliency_volume = get_saliency_volume(self.fixation_volumes[i], self.conv1D, self.conv2D)
+        fixation_map, saliency_volume = get_saliency_volume(self.fixation_volumes[idx], self.conv1D, self.conv2D)
 
         img = self.img_transform(img)
         if np.max(gt) > 1.0:

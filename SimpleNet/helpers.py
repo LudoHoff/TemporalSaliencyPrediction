@@ -42,7 +42,7 @@ def parse_fixations(filenames,
 
     for filename in filenames:
         # 1. Extracting data from .mat files
-        mat = sio.loadmat(FIXATION_PATH + path_prefix + filename)
+        mat = sio.loadmat(FIXATION_PATH + path_prefix + filename + '.mat')
         gaze = mat["gaze"]
 
         locations = []
