@@ -58,11 +58,11 @@ parser.add_argument('--model_val_path',default="model.pt", type=str)
 args = parser.parse_args()
 
 train_img_dir = args.dataset_dir + "images/train/"
-train_gt_dir = args.dataset_dir + "weighted_maps/train/"
+train_gt_dir = args.dataset_dir + "maps/train/"
 train_fix_dir = args.dataset_dir + "fixations/train/"
 
 val_img_dir = args.dataset_dir + "images/val/"
-val_gt_dir = args.dataset_dir + "weighted_maps/val/"
+val_gt_dir = args.dataset_dir + "maps/val/"
 val_fix_dir = args.dataset_dir + "fixations/val/"
 
 print("PNAS with saliency volume Model")
@@ -98,6 +98,23 @@ def loss_func(pred_map, gt, fixations, args):
         loss += args.sim_coeff * similarity(pred_map, gt)
     return loss
 
+def vol_loss_func(pred_vol, vol, args):
+    loss = torch.FloatTensor([0.0]).cuda()
+    criterion = nn.L1Loss()
+
+    for i in range(pred_vol.size[0]):
+        pred_map = pred_vol[i]
+        gt = vol[i]
+        if args.kldiv:
+            loss += args.kldiv_coeff * kldiv(pred_map, gt)
+        if args.cc:
+            loss += args.cc_coeff * cc(pred_map, gt)
+        if args.l1:
+            loss += args.l1_coeff * criterion(pred_map, gt)
+        if args.sim:
+            loss += args.sim_coeff * similarity(pred_map, gt)
+    return loss
+
 def train(model, optimizer, loader, epoch, device, args):
     model.train()
     tic = time.time()
@@ -105,21 +122,19 @@ def train(model, optimizer, loader, epoch, device, args):
     total_loss = 0.0
     cur_loss = 0.0
 
-    for idx, (img, gt, fixations) in enumerate(loader):
+    for idx, (img, gt, vol, fixations) in enumerate(loader):
         img = img.to(device)
         gt = gt.to(device)
+        vol = vol.to(device)
         fixations = fixations.to(device)
 
-        if args.enc_model == "pnasvol":
-            TODO
-            volume = train_volumes[idx].to(device)
-            optimizer.zero_grad()
-            pred_map = model(img, volume)
-        else:
-            optimizer.zero_grad()
-            pred_map = model(img)
+        optimizer.zero_grad()
+        pred_vol, pred_map = model(img)
+        assert pred_vol.size() == vol.size()
         assert pred_map.size() == gt.size()
-        loss = loss_func(pred_map, gt, fixations, args)
+        loss_gt = loss_func(pred_map, gt, fixations, args)
+        loss_vol = vol_loss_func(pred_vol, vol)
+        loss = loss_gt + loss_vol
         loss.backward()
         total_loss += loss.item()
         cur_loss += loss.item()
@@ -144,29 +159,16 @@ def validate(model, loader, epoch, device, args):
     nss_loss = AverageMeter()
     sim_loss = AverageMeter()
 
-    for (img, gt, fixations) in loader:
+    for (img, gt, vol, fixations) in loader:
         img = img.to(device)
         gt = gt.to(device)
+        vol = vol.to(device)
         fixations = fixations.to(device)
 
-        if args.enc_model == "pnasvol":
-            TODO
-            volume = train_volumes[idx].to(device)
-            optimizer.zero_grad()
-            pred_map = model(img, volume)
-        else:
-            optimizer.zero_grad()
-            pred_map = model(img)
+        pred_vol, _ = model(img)
 
         # Blurring
-        blur_map = pred_map.cpu().squeeze(0).
-        if args.enc_model == "pnasvol":
-            volume = train_volumes[idx].to(device)
-            optimizer.zero_grad()
-            pred_map = model(img, volume)
-        else:
-            optimizer.zero_grad()
-            pred_map = model(img)clone().numpy()
+        blur_map = pred_map.cpu().squeeze(0).clone().numpy()
         blur_map = blur(blur_map).unsqueeze(0).to(device)
 
         cc_loss.update(cc(blur_map, gt))

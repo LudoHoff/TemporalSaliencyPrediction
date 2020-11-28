@@ -142,7 +142,13 @@ class PNASVolModel(nn.Module):
         self.deconv_layer5 = nn.Sequential(
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = 128, out_channels = 25, kernel_size = 3, padding = 1, bias = True),
+            nn.Sigmoid()
+        )
+        self.readout = nn.Sequential(
+            nn.Conv2d(in_channels = 25, out_channels = 25, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = 25, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
 
@@ -179,9 +185,9 @@ class PNASVolModel(nn.Module):
 
         x = torch.cat((x,out1), 1)
         x = self.deconv_layer4(x)
-        x = self.deconv_layer5(x)
-        x = x.squeeze(1)
-        return x
+        vol = self.deconv_layer5(x)
+        map = self.readout(vol)
+        return vol.squeeze(1), map.squeeze(1)
 
 class DenseModel(nn.Module):
 
