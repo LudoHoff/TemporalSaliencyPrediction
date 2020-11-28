@@ -49,7 +49,7 @@ parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
 parser.add_argument('--l1_coeff',default=1.0, type=float)
 parser.add_argument('--train_enc',default=1, type=int)
 
-parser.add_argument('--dataset_dir',default="/home/samyak/old_saliency/saliency/SALICON_NEW/", type=str)
+parser.add_argument('--dataset_dir',default="../data/", type=str)
 parser.add_argument('--batch_size',default=32, type=int)
 parser.add_argument('--log_interval',default=60, type=int)
 parser.add_argument('--no_workers',default=4, type=int)
@@ -59,12 +59,12 @@ parser.add_argument('--model_val_path',default="model.pt", type=str)
 args = parser.parse_args()
 
 train_img_dir = args.dataset_dir + "images/train/"
-train_gt_dir = args.dataset_dir + "weighted_maps/train/"
-train_fix_dir = args.dataset_dir + "fixation_maps/train/"
+train_gt_dir = args.dataset_dir + "maps/train/"
+train_fix_dir = args.dataset_dir + "fixations/train/"
 
 val_img_dir = args.dataset_dir + "images/val/"
-val_gt_dir = args.dataset_dir + "weighted_maps/val/"
-val_fix_dir = args.dataset_dir + "fixation_maps/val/"
+val_gt_dir = args.dataset_dir + "maps/val/"
+val_fix_dir = args.dataset_dir + "fixations/val/"
 
 if args.enc_model == "pnas":
     print("PNAS Model")

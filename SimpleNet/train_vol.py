@@ -24,6 +24,12 @@ from utils import blur, AverageMeter
 from model import PNASVolModel
 from helpers import *
 
+from multiprocessing import set_start_method
+try:
+    set_start_method('spawn', force=True)
+except RuntimeError:
+    pass
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--no_epochs',default=40, type=int)
 parser.add_argument('--lr',default=1e-4, type=float)
@@ -75,11 +81,11 @@ if torch.cuda.device_count() > 1:
 	model = nn.DataParallel(model)
 model.to(device)
 
-train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
-val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
+train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)][:10]
+val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)][:5]
 
-train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_img_ids)[:10]
-val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)[:5]
+train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_img_ids)
+val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)

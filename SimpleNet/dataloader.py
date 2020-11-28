@@ -32,7 +32,7 @@ class SaliconDataset(DataLoader):
         gt = gt.astype('float')
         gt = cv2.resize(gt, (256,256))
 
-        fixations = np.array(Image.open(fix_path).convert('L'))
+        fixations = np.zeros((H,W)) #np.array(Image.open(fix_path).convert('L'))
         fixations = fixations.astype('float')
 
         img = self.img_transform(img)
@@ -41,7 +41,7 @@ class SaliconDataset(DataLoader):
         fixations = (fixations > 0.5).astype('float')
 
         assert np.min(gt)>=0.0 and np.max(gt)<=1.0
-        assert np.min(fixations)==0.0 and np.max(fixations)==1.0
+        #assert np.min(fixations)==0.0 and np.max(fixations)==1.0
         return img, torch.FloatTensor(gt), torch.FloatTensor(fixations)
 
     def __len__(self):
