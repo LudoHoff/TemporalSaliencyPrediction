@@ -79,8 +79,8 @@ if __name__ == '__main__':
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.device_count() > 1:
-    print("Let's use", torch.cuda.device_count(), "GPUs!")
-    model = nn.DataParallel(model)
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
     model.to(device)
 
     train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)][:10]
@@ -93,131 +93,131 @@ if __name__ == '__main__':
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
     def loss_func(pred_map, gt, fixations, args):
-    loss = torch.FloatTensor([0.0]).cuda()
-    criterion = nn.L1Loss()
-    if args.kldiv:
-        loss += args.kldiv_coeff * kldiv(pred_map, gt)
-    if args.cc:
-        loss += args.cc_coeff * cc(pred_map, gt)
-    if args.nss:
-        loss += args.nss_coeff * nss(pred_map, fixations)
-    if args.l1:
-        loss += args.l1_coeff * criterion(pred_map, gt)
-    if args.sim:
-        loss += args.sim_coeff * similarity(pred_map, gt)
-    return loss
-
-    def vol_loss_func(pred_vol, vol, args):
-    loss = torch.FloatTensor([0.0]).cuda()
-    criterion = nn.L1Loss()
-
-    for i in range(pred_vol.size[0]):
-        pred_map = pred_vol[i]
-        gt = vol[i]
+        loss = torch.FloatTensor([0.0]).cuda()
+        criterion = nn.L1Loss()
         if args.kldiv:
             loss += args.kldiv_coeff * kldiv(pred_map, gt)
         if args.cc:
             loss += args.cc_coeff * cc(pred_map, gt)
+        if args.nss:
+            loss += args.nss_coeff * nss(pred_map, fixations)
         if args.l1:
             loss += args.l1_coeff * criterion(pred_map, gt)
         if args.sim:
             loss += args.sim_coeff * similarity(pred_map, gt)
-    return loss
+        return loss
+
+    def vol_loss_func(pred_vol, vol, args):
+        loss = torch.FloatTensor([0.0]).cuda()
+        criterion = nn.L1Loss()
+
+        for i in range(pred_vol.size[0]):
+            pred_map = pred_vol[i]
+            gt = vol[i]
+            if args.kldiv:
+                loss += args.kldiv_coeff * kldiv(pred_map, gt)
+            if args.cc:
+                loss += args.cc_coeff * cc(pred_map, gt)
+            if args.l1:
+                loss += args.l1_coeff * criterion(pred_map, gt)
+            if args.sim:
+                loss += args.sim_coeff * similarity(pred_map, gt)
+        return loss
 
     def train(model, optimizer, loader, epoch, device, args):
-    model.train()
-    tic = time.time()
+        model.train()
+        tic = time.time()
 
-    total_loss = 0.0
-    cur_loss = 0.0
+        total_loss = 0.0
+        cur_loss = 0.0
 
-    for idx, (img, gt, vol, fixations) in enumerate(loader):
-        img = img.to(device)
-        gt = gt.to(device)
-        vol = vol.to(device)
-        fixations = fixations.to(device)
+        for idx, (img, gt, vol, fixations) in enumerate(loader):
+            img = img.to(device)
+            gt = gt.to(device)
+            vol = vol.to(device)
+            fixations = fixations.to(device)
 
-        optimizer.zero_grad()
-        pred_vol, pred_map = model(img)
-        assert pred_vol.size() == vol.size()
-        assert pred_map.size() == gt.size()
-        loss_gt = loss_func(pred_map, gt, fixations, args)
-        loss_vol = vol_loss_func(pred_vol, vol)
-        loss = loss_gt + loss_vol
-        loss.backward()
-        total_loss += loss.item()
-        cur_loss += loss.item()
+            optimizer.zero_grad()
+            pred_vol, pred_map = model(img)
+            assert pred_vol.size() == vol.size()
+            assert pred_map.size() == gt.size()
+            loss_gt = loss_func(pred_map, gt, fixations, args)
+            loss_vol = vol_loss_func(pred_vol, vol)
+            loss = loss_gt + loss_vol
+            loss.backward()
+            total_loss += loss.item()
+            cur_loss += loss.item()
 
-        optimizer.step()
-        if idx%args.log_interval==(args.log_interval-1):
-            print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
-            cur_loss = 0.0
-            sys.stdout.flush()
+            optimizer.step()
+            if idx%args.log_interval==(args.log_interval-1):
+                print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
+                cur_loss = 0.0
+                sys.stdout.flush()
 
-    print('[{:2d}, train] avg_loss : {:.5f}'.format(epoch, total_loss/len(loader)))
-    sys.stdout.flush()
+        print('[{:2d}, train] avg_loss : {:.5f}'.format(epoch, total_loss/len(loader)))
+        sys.stdout.flush()
 
-    return total_loss/len(loader)
+        return total_loss/len(loader)
 
     def validate(model, loader, epoch, device, args):
-    model.eval()
-    tic = time.time()
-    total_loss = 0.0
-    cc_loss = AverageMeter()
-    kldiv_loss = AverageMeter()
-    nss_loss = AverageMeter()
-    sim_loss = AverageMeter()
+        model.eval()
+        tic = time.time()
+        total_loss = 0.0
+        cc_loss = AverageMeter()
+        kldiv_loss = AverageMeter()
+        nss_loss = AverageMeter()
+        sim_loss = AverageMeter()
 
-    for (img, gt, vol, fixations) in loader:
-        img = img.to(device)
-        gt = gt.to(device)
-        vol = vol.to(device)
-        fixations = fixations.to(device)
+        for (img, gt, vol, fixations) in loader:
+            img = img.to(device)
+            gt = gt.to(device)
+            vol = vol.to(device)
+            fixations = fixations.to(device)
 
-        pred_vol, _ = model(img)
+            pred_vol, _ = model(img)
 
-        # Blurring
-        blur_map = pred_map.cpu().squeeze(0).clone().numpy()
-        blur_map = blur(blur_map).unsqueeze(0).to(device)
+            # Blurring
+            blur_map = pred_map.cpu().squeeze(0).clone().numpy()
+            blur_map = blur(blur_map).unsqueeze(0).to(device)
 
-        cc_loss.update(cc(blur_map, gt))
-        kldiv_loss.update(kldiv(blur_map, gt))
-        nss_loss.update(nss(blur_map, gt))
-        sim_loss.update(similarity(blur_map, gt))
+            cc_loss.update(cc(blur_map, gt))
+            kldiv_loss.update(kldiv(blur_map, gt))
+            nss_loss.update(nss(blur_map, gt))
+            sim_loss.update(similarity(blur_map, gt))
 
-    print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
-    sys.stdout.flush()
+        print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
+        sys.stdout.flush()
 
-    return cc_loss.avg
+        return cc_loss.avg
 
     params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
     if args.optim=="Adam":
-    optimizer = torch.optim.Adam(params, lr=args.lr)
+        optimizer = torch.optim.Adam(params, lr=args.lr)
     if args.optim=="Adagrad":
-    optimizer = torch.optim.Adagrad(params, lr=args.lr)
+        optimizer = torch.optim.Adagrad(params, lr=args.lr)
     if args.optim=="SGD":
-    optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9)
+        optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9)
     if args.lr_sched:
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     print(device)
 
     for epoch in range(0, args.no_epochs):
-    loss = train(model, optimizer, train_loader, epoch, device, args)
+        loss = train(model, optimizer, train_loader, epoch, device, args)
 
-    with torch.no_grad():
-        cc_loss = validate(model, val_loader, epoch, device, args)
-        if epoch == 0 :
-            best_loss = cc_loss
-        if best_loss <= cc_loss:
-            best_loss = cc_loss
-            print('[{:2d},  save, {}]'.format(epoch, args.model_val_path))
-            if torch.cuda.device_count() > 1:
-                torch.save(model.module.state_dict(), args.model_val_path)
-            else:
-                torch.save(model.state_dict(), args.model_val_path)
-        print()
+        with torch.no_grad():
+            cc_loss = validate(model, val_loader, epoch, device, args)
+            if epoch == 0 :
+                best_loss = cc_loss
+            if best_loss <= cc_loss:
+                best_loss = cc_loss
+                print('[{:2d},  save, {}]'.format(epoch, args.model_val_path))
+                if torch.cuda.device_count() > 1:
+                    torch.save(model.module.state_dict(), args.model_val_path)
+                else:
+                    torch.save(model.state_dict(), args.model_val_path)
+            print()
 
-    if args.lr_sched:
-        scheduler.step()
+        if args.lr_sched:
+            scheduler.step()
