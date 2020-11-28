@@ -25,72 +25,74 @@ from model import PNASVolModel
 from helpers import *
 
 from multiprocessing import set_start_method
-try:
-    set_start_method('spawn', force=True)
-except RuntimeError:
-    pass
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--no_epochs',default=40, type=int)
-parser.add_argument('--lr',default=1e-4, type=float)
-parser.add_argument('--kldiv',default=True, type=bool)
-parser.add_argument('--cc',default=False, type=bool)
-parser.add_argument('--nss',default=False, type=bool)
-parser.add_argument('--sim',default=False, type=bool)
-parser.add_argument('--nss_emlnet',default=False, type=bool)
-parser.add_argument('--nss_norm',default=False, type=bool)
-parser.add_argument('--l1',default=False, type=bool)
-parser.add_argument('--lr_sched',default=False, type=bool)
-parser.add_argument('--dilation',default=False, type=bool)
-parser.add_argument('--optim',default="Adam", type=str)
+if __name__ == '__main__':
+    try:
+        set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass
 
-parser.add_argument('--load_weight',default=1, type=int)
-parser.add_argument('--kldiv_coeff',default=1.0, type=float)
-parser.add_argument('--step_size',default=5, type=int)
-parser.add_argument('--cc_coeff',default=-1.0, type=float)
-parser.add_argument('--sim_coeff',default=-1.0, type=float)
-parser.add_argument('--nss_coeff',default=1.0, type=float)
-parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
-parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
-parser.add_argument('--l1_coeff',default=1.0, type=float)
-parser.add_argument('--train_enc',default=1, type=int)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no_epochs',default=40, type=int)
+    parser.add_argument('--lr',default=1e-4, type=float)
+    parser.add_argument('--kldiv',default=True, type=bool)
+    parser.add_argument('--cc',default=False, type=bool)
+    parser.add_argument('--nss',default=False, type=bool)
+    parser.add_argument('--sim',default=False, type=bool)
+    parser.add_argument('--nss_emlnet',default=False, type=bool)
+    parser.add_argument('--nss_norm',default=False, type=bool)
+    parser.add_argument('--l1',default=False, type=bool)
+    parser.add_argument('--lr_sched',default=False, type=bool)
+    parser.add_argument('--dilation',default=False, type=bool)
+    parser.add_argument('--optim',default="Adam", type=str)
 
-parser.add_argument('--dataset_dir',default="../data/", type=str)
-parser.add_argument('--batch_size',default=32, type=int)
-parser.add_argument('--log_interval',default=60, type=int)
-parser.add_argument('--no_workers',default=4, type=int)
-parser.add_argument('--model_val_path',default="model.pt", type=str)
+    parser.add_argument('--load_weight',default=1, type=int)
+    parser.add_argument('--kldiv_coeff',default=1.0, type=float)
+    parser.add_argument('--step_size',default=5, type=int)
+    parser.add_argument('--cc_coeff',default=-1.0, type=float)
+    parser.add_argument('--sim_coeff',default=-1.0, type=float)
+    parser.add_argument('--nss_coeff',default=1.0, type=float)
+    parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
+    parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
+    parser.add_argument('--l1_coeff',default=1.0, type=float)
+    parser.add_argument('--train_enc',default=1, type=int)
+
+    parser.add_argument('--dataset_dir',default="../data/", type=str)
+    parser.add_argument('--batch_size',default=32, type=int)
+    parser.add_argument('--log_interval',default=60, type=int)
+    parser.add_argument('--no_workers',default=4, type=int)
+    parser.add_argument('--model_val_path',default="model.pt", type=str)
 
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-train_img_dir = args.dataset_dir + "images/train/"
-train_gt_dir = args.dataset_dir + "maps/train/"
-train_fix_dir = args.dataset_dir + "fixations/train/"
+    train_img_dir = args.dataset_dir + "images/train/"
+    train_gt_dir = args.dataset_dir + "maps/train/"
+    train_fix_dir = args.dataset_dir + "fixations/train/"
 
-val_img_dir = args.dataset_dir + "images/val/"
-val_gt_dir = args.dataset_dir + "maps/val/"
-val_fix_dir = args.dataset_dir + "fixations/val/"
+    val_img_dir = args.dataset_dir + "images/val/"
+    val_gt_dir = args.dataset_dir + "maps/val/"
+    val_fix_dir = args.dataset_dir + "fixations/val/"
 
-print("PNAS with saliency volume Model")
-model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight)
+    print("PNAS with saliency volume Model")
+    model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-if torch.cuda.device_count() > 1:
-	print("Let's use", torch.cuda.device_count(), "GPUs!")
-	model = nn.DataParallel(model)
-model.to(device)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.device_count() > 1:
+    print("Let's use", torch.cuda.device_count(), "GPUs!")
+    model = nn.DataParallel(model)
+    model.to(device)
 
-train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)][:10]
-val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)][:5]
+    train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)][:10]
+    val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)][:5]
 
-train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_img_ids)
-val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
+    train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_img_ids)
+    val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
 
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
-val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
-def loss_func(pred_map, gt, fixations, args):
+    def loss_func(pred_map, gt, fixations, args):
     loss = torch.FloatTensor([0.0]).cuda()
     criterion = nn.L1Loss()
     if args.kldiv:
@@ -105,7 +107,7 @@ def loss_func(pred_map, gt, fixations, args):
         loss += args.sim_coeff * similarity(pred_map, gt)
     return loss
 
-def vol_loss_func(pred_vol, vol, args):
+    def vol_loss_func(pred_vol, vol, args):
     loss = torch.FloatTensor([0.0]).cuda()
     criterion = nn.L1Loss()
 
@@ -122,7 +124,7 @@ def vol_loss_func(pred_vol, vol, args):
             loss += args.sim_coeff * similarity(pred_map, gt)
     return loss
 
-def train(model, optimizer, loader, epoch, device, args):
+    def train(model, optimizer, loader, epoch, device, args):
     model.train()
     tic = time.time()
 
@@ -157,7 +159,7 @@ def train(model, optimizer, loader, epoch, device, args):
 
     return total_loss/len(loader)
 
-def validate(model, loader, epoch, device, args):
+    def validate(model, loader, epoch, device, args):
     model.eval()
     tic = time.time()
     total_loss = 0.0
@@ -188,20 +190,20 @@ def validate(model, loader, epoch, device, args):
 
     return cc_loss.avg
 
-params = list(filter(lambda p: p.requires_grad, model.parameters()))
+    params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
-if args.optim=="Adam":
+    if args.optim=="Adam":
     optimizer = torch.optim.Adam(params, lr=args.lr)
-if args.optim=="Adagrad":
+    if args.optim=="Adagrad":
     optimizer = torch.optim.Adagrad(params, lr=args.lr)
-if args.optim=="SGD":
+    if args.optim=="SGD":
     optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9)
-if args.lr_sched:
+    if args.lr_sched:
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
-print(device)
+    print(device)
 
-for epoch in range(0, args.no_epochs):
+    for epoch in range(0, args.no_epochs):
     loss = train(model, optimizer, train_loader, epoch, device, args)
 
     with torch.no_grad():
