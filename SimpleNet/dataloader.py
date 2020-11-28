@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import torch
 import os, cv2
+from helpers import *
 
 class SaliconDataset(DataLoader):
     def __init__(self, img_dir, gt_dir, fix_dir, img_ids, exten='.png'):
@@ -63,7 +64,7 @@ class SaliconVolDataset(DataLoader):
         self.filenames = get_filenames(fix_dir)
 
         print("Parsing fixations...")
-        self.fixation_volumes = parse_fixations(filenames, progress_bar=True)
+        self.fixation_volumes = parse_fixations(self.filenames, progress_bar=True)
         self.conv1D = GaussianBlur1D().cuda()
         self.conv2D = GaussianBlur2D().cuda()
 

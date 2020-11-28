@@ -21,8 +21,8 @@ from dataloader import SaliconVolDataset
 from loss import *
 import cv2
 from utils import blur, AverageMeter
-from helpers import *
 from model import PNASVolModel
+from helpers import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--no_epochs',default=40, type=int)
