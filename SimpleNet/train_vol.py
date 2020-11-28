@@ -17,10 +17,11 @@ import numpy as np
 import torch.nn.init as init
 import torch.nn.functional as F
 from scipy.stats import multivariate_normal
-from dataloader import SaliconDataset
+from dataloader import SaliconVolDataset
 from loss import *
 import cv2
 from utils import blur, AverageMeter
+from helpers import *
 from model import PNASVolModel
 
 parser = argparse.ArgumentParser()
