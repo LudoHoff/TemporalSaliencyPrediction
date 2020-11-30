@@ -89,18 +89,16 @@ class PNASModel(nn.Module):
         x = torch.cat((x,out2), 1)
         x = self.deconv_layer3(x)
         x = torch.cat((x,out1), 1)
-        print("concat", x.size())
+
         x = self.deconv_layer4(x)
-        print("in channels 192, out channels 128, kernel size = 3, padding = 1 + upsampling", x.size())
+        
         x = self.deconv_layer5(x)
-        print("in channels 128, out channels 128, kernel size = 3, padding = 1 + in channels 128, out channels 1, kernel size = 3, padding = 1", x.size())
         x = x.squeeze(1)
-        print("squeeze", x.size())
         return x
 
 class PNASVolModel(nn.Module):
 
-    def __init__(self, num_channels=3, train_enc=False, load_weight=1):
+    def __init__(self, num_channels=3, time_slices, train_enc=False, load_weight=1):
         super(PNASVolModel, self).__init__()
         self.path = '../PNAS/PNASNet-5_Large.pth'
 
@@ -145,13 +143,13 @@ class PNASVolModel(nn.Module):
         self.deconv_layer5 = nn.Sequential(
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = 128, out_channels = TIME_SLICES, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = 128, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
         self.readout = nn.Sequential(
-            nn.Conv2d(in_channels = TIME_SLICES, out_channels = TIME_SLICES, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = time_slices, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = TIME_SLICES, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = time_slices, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
 

@@ -61,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size',default=32, type=int)
     parser.add_argument('--log_interval',default=60, type=int)
     parser.add_argument('--no_workers',default=4, type=int)
+    parser.add_argument('--vol_size',default=10, type=int)
     parser.add_argument('--model_val_path',default="model.pt", type=str)
 
 
@@ -75,7 +76,7 @@ if __name__ == '__main__':
     val_fix_dir = args.dataset_dir + "fixations/val/"
 
     print("PNAS with saliency volume Model")
-    model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight)
+    model = PNASVolModel(time_slices=args.time_slices, train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.device_count() > 1:

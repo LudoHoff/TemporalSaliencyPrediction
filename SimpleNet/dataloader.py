@@ -48,11 +48,12 @@ class SaliconDataset(DataLoader):
         return len(self.img_ids)
 
 class SaliconVolDataset(DataLoader):
-    def __init__(self, img_dir, gt_dir, fix_dir, img_ids, exten='.png'):
+    def __init__(self, img_dir, gt_dir, fix_dir, img_ids, time_slices, exten='.png'):
         self.img_dir = img_dir
         self.gt_dir = gt_dir
         self.fix_dir = fix_dir
         self.img_ids = img_ids
+        self.time_slices = time_slices
         self.exten = exten
         self.img_transform = transforms.Compose([
             transforms.Resize((256, 256)),
@@ -63,7 +64,7 @@ class SaliconVolDataset(DataLoader):
 
         print("Parsing fixations...")
         self.fixation_volumes = parse_fixations(self.img_ids, path_prefix=fix_dir, progress_bar=True)
-        self.conv1D = GaussianBlur1D().cuda()
+        self.conv1D = GaussianBlur1D(time_slices).cuda()
         self.conv2D = GaussianBlur2D().cuda()
 
     def __getitem__(self, idx):
@@ -77,16 +78,15 @@ class SaliconVolDataset(DataLoader):
         gt = gt.astype('float')
         gt = cv2.resize(gt, (256,256))
 
-        fixation_map, saliency_volume = get_saliency_volume(self.fixation_volumes[idx], self.conv1D, self.conv2D)
+        fixation_map, saliency_volume = get_saliency_volume(self.fixation_volumes[idx], self.conv1D, self.conv2D, self.time_slices)
         saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).cpu().numpy(), 0, -1)
         saliency_volume = np.swapaxes(cv2.resize(saliency_volume, (256,256)), 0, -1)
         img = self.img_transform(img)
         if np.max(gt) > 1.0:
             gt = gt / 255.0
-        #fixation_map = (fixation_map > 0.5).astype('float')
 
         assert np.min(gt)>=0.0 and np.max(gt)<=1.0
-        #assert np.min(fixation_map)==0.0 and np.max(fixation_map)==1.0
+        assert fixation_map.min().item() ==0.0 and fixation_map.max().item()==1.0
         return img, torch.FloatTensor(gt), torch.FloatTensor(saliency_volume), fixation_map
 
     def __len__(self):
