@@ -88,11 +88,14 @@ class PNASModel(nn.Module):
 
         x = torch.cat((x,out2), 1)
         x = self.deconv_layer3(x)
-
         x = torch.cat((x,out1), 1)
+        print("concat", x.size())
         x = self.deconv_layer4(x)
+        print("in channels 192, out channels 128, kernel size = 3, padding = 1 + upsampling", x.size())
         x = self.deconv_layer5(x)
+        print("in channels 128, out channels 128, kernel size = 3, padding = 1 + in channels 128, out channels 1, kernel size = 3, padding = 1", x.size())
         x = x.squeeze(1)
+        print("squeeze", x.size())
         return x
 
 class PNASVolModel(nn.Module):
@@ -142,17 +145,17 @@ class PNASVolModel(nn.Module):
         self.deconv_layer5 = nn.Sequential(
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = 128, out_channels = 25, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = 128, out_channels = TIME_SLICES, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
         self.readout = nn.Sequential(
-            nn.Conv2d(in_channels = 25, out_channels = 25, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = TIME_SLICES, out_channels = TIME_SLICES, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = 25, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = TIME_SLICES, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
 
-    def forward(self, images, volumes):
+    def forward(self, images):
         batch_size = images.size(0)
 
         s0 = self.pnas.conv0(images)
@@ -185,6 +188,7 @@ class PNASVolModel(nn.Module):
 
         x = torch.cat((x,out1), 1)
         x = self.deconv_layer4(x)
+
         vol = self.deconv_layer5(x)
         map = self.readout(vol)
         return vol.squeeze(1), map.squeeze(1)
