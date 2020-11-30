@@ -4,7 +4,7 @@ from itertools import groupby
 import cv2
 
 def generate_fixation_files(path):
-    filenames = [nm.split(".")[0] for nm in os.listdir('../data/fixations/' + path)][:10]
+    filenames = [nm.split(".")[0] for nm in os.listdir('../data/fixations/' + path)]
     print('Parsing fixations of ' + path + '...')
     fixation_volumes = parse_fixations(filenames, '../data/fixations/' + path)
 

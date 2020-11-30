@@ -105,4 +105,4 @@ def get_saliency_volume(fixation_volume, conv1D, conv2D, time_slices):
 
     saliency_volume = conv2D.forward(fixation_map)
     saliency_volume = conv1D.forward(saliency_volume)
-    return fixation_map, saliency_volume / saliency_volume.max()
+    return saliency_volume / saliency_volume.max()
