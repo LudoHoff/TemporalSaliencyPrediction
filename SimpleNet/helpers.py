@@ -15,6 +15,7 @@ from math import pi, sqrt, exp
 W = 640
 H = 480
 TIMESPAN = 5000
+TIME_SLICES = 10
 MAX_PIXEL_DISTANCE = 800
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 
@@ -70,8 +71,9 @@ def gauss(n, sigma):
 class GaussianBlur1D(nn.Module):
     def __init__(self):
         super(GaussianBlur1D, self).__init__()
-        self.size = 17
-        kernel = gauss(self.size, 2)
+        sigma = 2 * TIME_SLICES / 25
+        self.size = 2 * int(4 * sigma + 0.5) + 1
+        kernel = gauss(self.size, sigma)
         kernel = torch.cuda.FloatTensor(kernel)
         self.weight = nn.Parameter(data=kernel, requires_grad=False)
  
@@ -98,7 +100,7 @@ class GaussianBlur2D(nn.Module):
 def get_saliency_volume(fixation_volume, conv1D, conv2D):
     fix_timestamps = sorted([fixation for fix_timestamps in fixation_volume
                                       for fixation in fix_timestamps], key=lambda x: x[0])
-    fix_timestamps = [(int(ts / 200), (x, y)) for (ts, (x, y)) in fix_timestamps]
+    fix_timestamps = [(int(ts * TIME_SLICES / TIMESPAN), (x, y)) for (ts, (x, y)) in fix_timestamps]
     fixation_map = torch.cuda.FloatTensor(25,H,W).fill_(0)
 
     for ts, (x, y) in fix_timestamps:
