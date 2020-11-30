@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size',default=32, type=int)
     parser.add_argument('--log_interval',default=60, type=int)
     parser.add_argument('--no_workers',default=4, type=int)
-    parser.add_argument('--vol_size',default=10, type=int)
+    parser.add_argument('--time_slices',default=10, type=int)
     parser.add_argument('--model_val_path',default="model.pt", type=str)
 
 
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     val_fix_dir = args.dataset_dir + "fixations/val/"
 
     print("PNAS with saliency volume Model")
-    model = PNASVolModel(time_slices=args.time_slices, train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
+    model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if torch.cuda.device_count() > 1:
@@ -84,11 +84,11 @@ if __name__ == '__main__':
         model = nn.DataParallel(model)
     model.to(device)
 
-    train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)][:10]
-    val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)][:5]
+    train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
+    val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
 
-    train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_img_ids)
-    val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
+    train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_img_ids, args.time_slices)
+    val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids, args.time_slices)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
@@ -140,7 +140,6 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             pred_vol, pred_map = model(img)
-            print(pred_vol.size(), vol.size())
             assert pred_vol.size() == vol.size()
             assert pred_map.size() == gt.size()
             loss_gt = loss_func(pred_map, gt, fixations, args)

@@ -98,7 +98,7 @@ class PNASModel(nn.Module):
 
 class PNASVolModel(nn.Module):
 
-    def __init__(self, num_channels=3, time_slices, train_enc=False, load_weight=1):
+    def __init__(self, time_slices, num_channels=3, train_enc=False, load_weight=1):
         super(PNASVolModel, self).__init__()
         self.path = '../PNAS/PNASNet-5_Large.pth'
 
