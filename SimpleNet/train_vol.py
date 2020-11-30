@@ -111,7 +111,7 @@ if __name__ == '__main__':
         loss = torch.FloatTensor([0.0]).cuda()
         criterion = nn.L1Loss()
 
-        for i in range(pred_vol.size[0]):
+        for i in range(pred_vol.size()[0]):
             pred_map = pred_vol[i]
             gt = vol[i]
             if args.kldiv:
@@ -122,7 +122,7 @@ if __name__ == '__main__':
                 loss += args.l1_coeff * criterion(pred_map, gt)
             if args.sim:
                 loss += args.sim_coeff * similarity(pred_map, gt)
-        return loss
+        return loss / pred_vol.size()[0]
 
     def train(model, optimizer, loader, epoch, device, args):
         model.train()
@@ -139,10 +139,11 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             pred_vol, pred_map = model(img)
+            print(pred_vol.size(), vol.size())
             assert pred_vol.size() == vol.size()
             assert pred_map.size() == gt.size()
             loss_gt = loss_func(pred_map, gt, fixations, args)
-            loss_vol = vol_loss_func(pred_vol, vol)
+            loss_vol = vol_loss_func(pred_vol, vol, args)
             loss = loss_gt + loss_vol
             loss.backward()
             total_loss += loss.item()
@@ -174,7 +175,7 @@ if __name__ == '__main__':
             vol = vol.to(device)
             fixations = fixations.to(device)
 
-            pred_vol, _ = model(img)
+            _, pred_map = model(img)
 
             # Blurring
             blur_map = pred_map.cpu().squeeze(0).clone().numpy()

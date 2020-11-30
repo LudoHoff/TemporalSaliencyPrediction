@@ -78,7 +78,8 @@ class SaliconVolDataset(DataLoader):
         gt = cv2.resize(gt, (256,256))
 
         fixation_map, saliency_volume = get_saliency_volume(self.fixation_volumes[idx], self.conv1D, self.conv2D)
-
+        saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).cpu().numpy(), 0, -1)
+        saliency_volume = np.swapaxes(cv2.resize(saliency_volume, (256,256)), 0, -1)
         img = self.img_transform(img)
         if np.max(gt) > 1.0:
             gt = gt / 255.0
@@ -86,7 +87,7 @@ class SaliconVolDataset(DataLoader):
 
         assert np.min(gt)>=0.0 and np.max(gt)<=1.0
         #assert np.min(fixation_map)==0.0 and np.max(fixation_map)==1.0
-        return img, torch.FloatTensor(gt), saliency_volume, fixation_map
+        return img, torch.FloatTensor(gt), torch.FloatTensor(saliency_volume), fixation_map
 
     def __len__(self):
         return len(self.img_ids)
