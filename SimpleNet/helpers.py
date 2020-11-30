@@ -97,13 +97,11 @@ class GaussianBlur2D(nn.Module):
         return temp[:,:,pad:-pad,pad:-pad]
 
 def get_saliency_volume(fixation_volume, conv1D, conv2D, time_slices):
-    fix_timestamps = sorted([fixation for fix_timestamps in fixation_volume
-                                      for fixation in fix_timestamps], key=lambda x: x[0])
-    fix_timestamps = [(int(ts * time_slices / TIMESPAN), (x, y)) for (ts, (x, y)) in fix_timestamps]
     fixation_map = torch.cuda.FloatTensor(time_slices,H,W).fill_(0)
 
-    for ts, (x, y) in fix_timestamps:
-        fixation_map[ts-1,y-1,x-1] = 1
+    for ts, coords in fixation_volume:
+        for (x, y) in coords:
+            fixation_map[ts-1,y-1,x-1] = 1
 
     saliency_volume = conv2D.forward(fixation_map)
     saliency_volume = conv1D.forward(saliency_volume)
