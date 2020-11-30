@@ -1,30 +1,33 @@
+import matplotlib
 import argparse
 import glob, os
-import torch
-import sys
-import time
-import torch.nn as nn
 import pickle
-from torch.distributions.multivariate_normal import MultivariateNormal as Norm
-from torch.autograd import Variable
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from torchvision import transforms, utils
-from PIL import Image
-from torch.utils.data import DataLoader
-import numpy as np
-import torch.nn.init as init
-import torch.nn.functional as F
-from scipy.stats import multivariate_normal
-from dataloader import SaliconVolDataset
-from loss import *
+import torch
+import wandb
+import time
+import sys
 import cv2
-from utils import blur, AverageMeter
-from model import PNASVolModel
-from helpers import *
 
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
+import torch.nn.init as init
+import torch.nn as nn
+import numpy as np
+
+from torch.distributions.multivariate_normal import MultivariateNormal as Norm
 from multiprocessing import set_start_method
+from scipy.stats import multivariate_normal
+from torchvision import transforms, utils
+from dataloader import SaliconVolDataset
+from torch.utils.data import DataLoader
+from utils import blur, AverageMeter
+from torch.autograd import Variable
+from model import PNASVolModel
+from PIL import Image
+from helpers import *
+from loss import *
+
+matplotlib.use('Agg')
 
 if __name__ == '__main__':
     try:
@@ -32,6 +35,8 @@ if __name__ == '__main__':
     except RuntimeError:
         pass
 
+    wandb.init(project="saliency")
+‍
     parser = argparse.ArgumentParser()
     parser.add_argument('--no_epochs',default=40, type=int)
     parser.add_argument('--lr',default=1e-4, type=float)
@@ -64,7 +69,6 @@ if __name__ == '__main__':
     parser.add_argument('--time_slices',default=10, type=int)
     parser.add_argument('--model_val_path',default="model.pt", type=str)
 
-
     args = parser.parse_args()
 
     train_img_dir = args.dataset_dir + "images/train/"
@@ -86,8 +90,8 @@ if __name__ == '__main__':
         model = nn.DataParallel(model)
     model.to(device)
 
-    train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
-    val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
+    train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)][:5]
+    val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)][:5]
 
     train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_pars_fix_dir, train_img_ids, args.time_slices)
     val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_pars_fix_dir, val_img_ids, args.time_slices)
@@ -134,6 +138,7 @@ if __name__ == '__main__':
         total_loss = 0.0
         cur_loss = 0.0
 
+        wandb.watch(model)
         for idx, (img, gt, vol, fixations) in enumerate(loader):
             img = img.to(device)
             gt = gt.to(device)
@@ -154,6 +159,7 @@ if __name__ == '__main__':
             optimizer.step()
             if idx%args.log_interval==(args.log_interval-1):
                 print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
+                wandb.log({"loss": cur_loss/args.log_interval})
                 cur_loss = 0.0
                 sys.stdout.flush()
 
@@ -171,6 +177,7 @@ if __name__ == '__main__':
         nss_loss = AverageMeter()
         sim_loss = AverageMeter()
 
+        wandb.watch(model)
         for (img, gt, vol, fixations) in loader:
             img = img.to(device)
             gt = gt.to(device)
@@ -189,6 +196,7 @@ if __name__ == '__main__':
             sim_loss.update(similarity(blur_map, gt))
 
         print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
+        wandb.log({"CC": cc_loss.avg, 'KLDIV': kldiv_loss.avg, 'NSS': nss_loss.avg, 'SIM': sim_loss.avg})
         sys.stdout.flush()
 
         return cc_loss.avg
