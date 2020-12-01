@@ -95,7 +95,7 @@ if __name__ == '__main__':
     val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
 
     train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_pars_fix_dir, train_img_ids, args.time_slices)
-    val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_pars_fix_dir, val_img_ids, args.time_slices)
+    val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
@@ -160,7 +160,6 @@ if __name__ == '__main__':
             if idx%args.log_interval==(args.log_interval-1):
                 print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
                 wandb.log({"loss": cur_loss/args.log_interval})
-#                wandb.join()
                 cur_loss = 0.0
                 sys.stdout.flush()
 
@@ -178,10 +177,9 @@ if __name__ == '__main__':
         nss_loss = AverageMeter()
         sim_loss = AverageMeter()
 
-        for (img, gt, vol, fixations) in loader:
+        for (img, gt, fixations) in loader:
             img = img.to(device)
             gt = gt.to(device)
-            vol = vol.to(device)
             fixations = fixations.to(device)
 
             _, pred_map = model(img)
@@ -216,6 +214,8 @@ if __name__ == '__main__':
 
     for epoch in range(0, args.no_epochs):
         loss = train(model, optimizer, train_loader, epoch, device, args)
+        val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
+        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
         with torch.no_grad():
             cc_loss = validate(model, val_loader, epoch, device, args)
