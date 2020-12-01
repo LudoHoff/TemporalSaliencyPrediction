@@ -79,7 +79,7 @@ class SaliconVolDataset(DataLoader):
 
         saliency_volume = np.zeros((self.time_slices, 256, 256))
         for i in range(self.time_slices):
-            vol_path = os.path.join(self.vol_dir, img_id + '_' + i + self.exten)
+            vol_path = os.path.join(self.vol_dir, img_id + '_' + str(i) + self.exten)
             saliency_volume[i] = cv2.imread(vol_path)
         saliency_volume.astype('float')
 
