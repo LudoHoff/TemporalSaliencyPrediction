@@ -74,12 +74,12 @@ if __name__ == '__main__':
     train_img_dir = args.dataset_dir + "images/train/"
     train_gt_dir = args.dataset_dir + "maps/train/"
     train_fix_dir = args.dataset_dir + "fixation_maps/train/"
-    train_pars_fix_dir = args.dataset_dir + "parsed_fixations/train/"
+    train_vol_dir = args.dataset_dir + "saliency_volumes_" + args.time_slices + "/train/"
 
     val_img_dir = args.dataset_dir + "images/val/"
     val_gt_dir = args.dataset_dir + "maps/val/"
     val_fix_dir = args.dataset_dir + "fixation_maps/val/"
-    val_pars_fix_dir = args.dataset_dir + "parsed_fixations/val/"
+    val_vol_dir = args.dataset_dir + "saliency_volumes_" + args.time_slices + "/val/"
 
     print("PNAS with saliency volume Model")
     model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
     val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
 
-    train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_pars_fix_dir, train_img_ids, args.time_slices)
+    train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_vol_dir, train_img_ids, args.time_slices)
     val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)

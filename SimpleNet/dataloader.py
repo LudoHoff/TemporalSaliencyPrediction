@@ -44,11 +44,11 @@ class SaliconDataset(DataLoader):
         return img, torch.FloatTensor(gt), torch.FloatTensor(fixations)
 
 class SaliconVolDataset(DataLoader):
-    def __init__(self, img_dir, gt_dir, fix_dir, pars_fix_dir, img_ids, time_slices, exten='.png'):
+    def __init__(self, img_dir, gt_dir, fix_dir, vol_dir, img_ids, time_slices, exten='.png'):
         self.img_dir = img_dir
         self.gt_dir = gt_dir
         self.fix_dir = fix_dir
-        self.pars_fix_dir = pars_fix_dir
+        self.vol_dir = vol_dir
         self.img_ids = img_ids
         self.time_slices = time_slices
         self.exten = exten
@@ -77,10 +77,11 @@ class SaliconVolDataset(DataLoader):
         if np.max(gt) > 1.0:
             gt = gt / 255.0
 
-        fixation_volume = np.load(os.path.join(self.pars_fix_dir, img_id + '.npy'), allow_pickle=True)
-        saliency_volume = get_saliency_volume(fixation_volume, self.conv1D, self.conv2D, self.time_slices)
-        saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy(), 0, -1)
-        saliency_volume = np.swapaxes(cv2.resize(saliency_volume, (256,256)), 0, -1)
+        saliency_volume = np.zeros((self.time_slices, 256, 256))
+        for i in range(self.time_slices):
+            vol_path = os.path.join(self.vol_dir, img_id + '_' + i + self.exten)
+            saliency_volume[i] = cv2.imread(vol_path)
+        saliency_volume.astype('float')
 
         fixations = np.array(Image.open(fix_path).convert('L'))
         fixations = fixations.astype('float')

@@ -3,10 +3,6 @@ from operator import itemgetter
 from itertools import groupby
 import cv2
 
-FIXATION_PATH = '../data/fixations/'
-FIX_MAP_PATH = '../data/fixation_maps/'
-PARS_FIX_PATH = '../data/parsed_fixations/'
-
 def generate_fixation_files(path):
     filenames = [nm.split(".")[0] for nm in os.listdir(FIXATION_PATH + path)]
     print('Parsing fixations of ' + path + '...')

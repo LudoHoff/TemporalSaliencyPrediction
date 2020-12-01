@@ -18,6 +18,11 @@ TIMESPAN = 5000
 MAX_PIXEL_DISTANCE = 800
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 
+FIXATION_PATH = '../data/fixations/'
+PARS_FIX_PATH = '../data/parsed_fixations/'
+FIX_MAP_PATH = '../data/fixation_maps/'
+SAL_VOL_PATH = '../data/saliency_volumes_'
+
 def get_filenames(path):
     return [file for file in sorted(os.listdir(path)) if fnmatch.fnmatch(file, 'COCO_*')]
 
