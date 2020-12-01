@@ -3,10 +3,14 @@ from operator import itemgetter
 from itertools import groupby
 import cv2
 
+FIXATION_PATH = '../data/fixations/'
+FIX_MAP_PATH = '../data/fixation_maps/'
+PARS_FIX_PATH = '../data/parsed_fixations/'
+
 def generate_fixation_files(path):
-    filenames = [nm.split(".")[0] for nm in os.listdir('../data/fixations/' + path)]
+    filenames = [nm.split(".")[0] for nm in os.listdir(FIXATION_PATH + path)]
     print('Parsing fixations of ' + path + '...')
-    fixation_volumes = parse_fixations(filenames, '../data/fixations/' + path)
+    fixation_volumes = parse_fixations(filenames, FIXATION_PATH + path)
 
     print('Saving parsed fixations of ' + path + '...')
     for i, fixation_volume in enumerate(tqdm(fixation_volumes)):
@@ -20,12 +24,12 @@ def generate_fixation_files(path):
             fix_map[coords[0] - 1, coords[1] - 1] = 1
         
         fix_map = fix_map.T
-        cv2.imwrite('../data/fixation_maps/' + path + filenames[i] + '.png', 255 * fix_map / fix_map.max())
+        cv2.imwrite(FIX_MAP_PATH + path + filenames[i] + '.png', 255 * fix_map / fix_map.max())
 
         # Saving fixation list with timestamps
         compressed = np.array([(key, list(v[1] for v in valuesiter))
                             for key,valuesiter in groupby(fix_timestamps, key=itemgetter(0))])
-        np.save('../data/parsed_fixations/' + path + filenames[i] + '.npy', compressed)
+        np.save(PARS_FIX_PATH + path + filenames[i] + '.npy', compressed)
 
 generate_fixation_files('train/')
 generate_fixation_files('val/')
