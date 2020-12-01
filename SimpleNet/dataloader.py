@@ -83,7 +83,7 @@ class SaliconVolDataset(DataLoader):
 
         fixation_volume = np.load(os.path.join(self.pars_fix_dir, img_id + '.npy'), allow_pickle=True)
         saliency_volume = get_saliency_volume(fixation_volume, self.conv1D, self.conv2D, self.time_slices)
-        saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).cpu().numpy(), 0, -1)
+        saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy(), 0, -1)
         saliency_volume = np.swapaxes(cv2.resize(saliency_volume, (256,256)), 0, -1)
 
         fixations = np.array(Image.open(fix_path).convert('L'))
