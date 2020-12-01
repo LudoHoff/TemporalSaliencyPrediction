@@ -214,8 +214,6 @@ if __name__ == '__main__':
 
     for epoch in range(0, args.no_epochs):
         loss = train(model, optimizer, train_loader, epoch, device, args)
-        val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
         with torch.no_grad():
             cc_loss = validate(model, val_loader, epoch, device, args)
