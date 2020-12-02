@@ -37,6 +37,8 @@ def visualize_model(model, loader, device, args):
             img = img.to(device)
             
             pred_map = model(img)
+            if type(pred_map) is tuple:
+                pred_map = pred_map[1]
             pred_map = pred_map.cpu().squeeze(0).numpy()
             pred_map = cv2.resize(pred_map, (sz[0], sz[1]))
             
