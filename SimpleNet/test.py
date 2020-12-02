@@ -34,6 +34,7 @@ parser.add_argument('--enc_model',default="pnasvol", type=str)
 parser.add_argument('--results_dir',default="../data/predictions/", type=str)
 parser.add_argument('--validate',default=0, type=int)
 parser.add_argument('--save_results',default=1, type=int)
+parser.add_argument('--time_slices',default=10, type=int)
 parser.add_argument('--dataset_dir',default="../data/", type=str)
 
 args = parser.parse_args()
@@ -43,7 +44,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if args.enc_model == "pnasvol":
     print("PNASVol Model")
     from model import PNASVolModel
-    model = PNASVolModel()
+    model = PNASVolModel(args.time_slices)
+
 elif args.enc_model == "pnas":
     print("PNAS Model")
     from model import PNASModel
