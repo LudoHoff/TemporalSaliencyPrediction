@@ -27,20 +27,24 @@ from utils import *
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--val_img_dir',default="../images/", type=str)
-parser.add_argument('--model_val_path',default="../saved_models/salicon_pnas.pt", type=str)
+parser.add_argument('--val_img_dir',default="../data/images/test/", type=str)
+parser.add_argument('--model_val_path',default="model.pt", type=str)
 parser.add_argument('--no_workers',default=4, type=int)
-parser.add_argument('--enc_model',default="pnas", type=str)
-parser.add_argument('--results_dir',default="../results/", type=str)
+parser.add_argument('--enc_model',default="pnasvol", type=str)
+parser.add_argument('--results_dir',default="../data/predictions/", type=str)
 parser.add_argument('--validate',default=0, type=int)
 parser.add_argument('--save_results',default=1, type=int)
-parser.add_argument('--dataset_dir',default="/home/samyak/old_saliency/saliency/SALICON_NEW/", type=str)
+parser.add_argument('--dataset_dir',default="../data/", type=str)
 
 args = parser.parse_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-if args.enc_model == "pnas":
+if args.enc_model == "pnasvol":
+    print("PNASVol Model")
+    from model import PNASVolModel
+    model = PNASVolModel()
+elif args.enc_model == "pnas":
     print("PNAS Model")
     from model import PNASModel
     model = PNASModel()
