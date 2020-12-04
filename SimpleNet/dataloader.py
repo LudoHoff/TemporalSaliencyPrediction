@@ -43,6 +43,9 @@ class SaliconDataset(DataLoader):
         assert np.min(fixations)==0.0 and np.max(fixations)==1.0
         return img, torch.FloatTensor(gt), torch.FloatTensor(fixations)
 
+    def __len__(self):		
+         return len(self.img_ids)
+
 class SaliconVolDataset(DataLoader):
     def __init__(self, img_dir, gt_dir, fix_dir, vol_dir, img_ids, time_slices, exten='.png'):
         self.img_dir = img_dir
@@ -80,7 +83,7 @@ class SaliconVolDataset(DataLoader):
         saliency_volume = np.zeros((self.time_slices, 256, 256))
         for i in range(self.time_slices):
             vol_path = os.path.join(self.vol_dir, img_id + '_' + str(i) + self.exten)
-            saliency_volume[i] = cv2.imread(vol_path)
+            saliency_volume[i] = cv2.imread(vol_path, cv2.IMREAD_GRAYSCALE)
         saliency_volume.astype('float')
 
         fixations = np.array(Image.open(fix_path).convert('L'))

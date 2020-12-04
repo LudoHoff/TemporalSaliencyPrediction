@@ -1,4 +1,4 @@
-import tqdm
+from tqdm import tqdm
 import cv2
 import os
 from matplotlib.image import imread
