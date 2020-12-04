@@ -61,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
     parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
     parser.add_argument('--l1_coeff',default=1.0, type=float)
+    parser.add_argument('--loss_vol_coeff',default=0.25, type=float)
     parser.add_argument('--train_enc',default=1, type=int)
 
     parser.add_argument('--dataset_dir',default="../data/", type=str)
@@ -154,7 +155,7 @@ if __name__ == '__main__':
             assert pred_map.size() == gt.size()
             loss_gt = loss_func(pred_map, gt, fixations, args)
             loss_vol = vol_loss_func(pred_vol, vol, args)
-            loss = loss_gt + loss_vol
+            loss = loss_gt + args.loss_vol_coeff * loss_vol
             loss.backward()
             
             total_loss += loss.item()

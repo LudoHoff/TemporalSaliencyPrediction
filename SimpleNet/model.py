@@ -149,11 +149,10 @@ class PNASVolModel(nn.Module):
         )
         # 2 conv layers
         self.readout = nn.Sequential(
-            #nn.Conv2d(in_channels = time_slices + 1, out_channels = 2 * (time_slices + 1), kernel_size = 3, padding = 1, bias = True),
             nn.Conv2d(in_channels = time_slices + 128, out_channels = time_slices + 128, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            #nn.Conv2d(in_channels = 2 * (time_slices + 1), out_channels = time_slices + 1, kernel_size = 3, padding = 1, bias = True),
-            #nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = time_slices + 128, out_channels = time_slices + 128, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
             nn.Conv2d(in_channels = time_slices + 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
