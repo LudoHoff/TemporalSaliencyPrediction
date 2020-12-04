@@ -140,16 +140,21 @@ class PNASVolModel(nn.Module):
             nn.ReLU(inplace=True),
             self.linear_upsampling
         )
+        # Maybe conv layer here
         self.deconv_layer5 = nn.Sequential(
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels = 128, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
+        # 2 conv layers
         self.readout = nn.Sequential(
-            nn.Conv2d(in_channels = time_slices, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
+            #nn.Conv2d(in_channels = time_slices + 1, out_channels = 2 * (time_slices + 1), kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = time_slices + 1, out_channels = time_slices + 1, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = time_slices, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            #nn.Conv2d(in_channels = 2 * (time_slices + 1), out_channels = time_slices + 1, kernel_size = 3, padding = 1, bias = True),
+            #nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = time_slices + 1, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
 
@@ -188,7 +193,7 @@ class PNASVolModel(nn.Module):
         x = self.deconv_layer4(x)
 
         vol = self.deconv_layer5(x)
-        map = self.readout(vol)
+        map = self.readout(torch.cat((x, vol), 0))
         return vol.squeeze(1), map.squeeze(1)
 
 class DenseModel(nn.Module):
