@@ -160,8 +160,8 @@ if __name__ == '__main__':
             
             total_loss += loss.item()
             cur_loss += loss.item()
-            vol_loss = loss_vol.item()
-            gt_loss = loss_gt.item()
+            vol_loss += loss_vol.item()
+            gt_loss += loss_gt.item()
 
             optimizer.step()
             if idx%args.log_interval==(args.log_interval-1):
