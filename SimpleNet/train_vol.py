@@ -19,6 +19,7 @@ from multiprocessing import set_start_method
 from scipy.stats import multivariate_normal
 from torchvision import transforms, utils
 from dataloader import SaliconVolDataset
+from dataloader import SaliconDataset
 from torch.utils.data import DataLoader
 from utils import blur, AverageMeter
 from torch.autograd import Variable
@@ -74,12 +75,12 @@ if __name__ == '__main__':
     train_img_dir = args.dataset_dir + "images/train/"
     train_gt_dir = args.dataset_dir + "maps/train/"
     train_fix_dir = args.dataset_dir + "fixation_maps/train/"
-    train_vol_dir = args.dataset_dir + "saliency_volumes_" + args.time_slices + "/train/"
+    train_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/train/"
 
     val_img_dir = args.dataset_dir + "images/val/"
     val_gt_dir = args.dataset_dir + "maps/val/"
     val_fix_dir = args.dataset_dir + "fixation_maps/val/"
-    val_vol_dir = args.dataset_dir + "saliency_volumes_" + args.time_slices + "/val/"
+    val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/val/"
 
     print("PNAS with saliency volume Model")
     model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
