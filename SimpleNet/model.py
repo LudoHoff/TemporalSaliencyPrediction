@@ -193,7 +193,7 @@ class PNASVolModel(nn.Module):
         x = self.deconv_layer4(x)
 
         vol = self.deconv_layer5(x)
-        map = self.readout(torch.cat((x, vol), 0))
+        map = self.readout(torch.cat((x.unsqueeze(0), vol), 0))
         return vol.squeeze(1), map.squeeze(1)
 
 class DenseModel(nn.Module):
