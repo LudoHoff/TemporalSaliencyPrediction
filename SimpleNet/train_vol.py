@@ -56,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--step_size',default=5, type=int)
     parser.add_argument('--cc_coeff',default=-1.0, type=float)
     parser.add_argument('--sim_coeff',default=-1.0, type=float)
-    parser.add_argument('--nss_coeff',default=1.0, type=float)
+    parser.add_argument('--nss_coeff',default=0.0, type=float)
     parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
     parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
     parser.add_argument('--l1_coeff',default=1.0, type=float)
@@ -138,6 +138,8 @@ if __name__ == '__main__':
 
         total_loss = 0.0
         cur_loss = 0.0
+        vol_loss = 0.0
+        gt_loss = 0.0
 
         for idx, (img, gt, vol, fixations) in enumerate(loader):
             img = img.to(device)
@@ -153,14 +155,22 @@ if __name__ == '__main__':
             loss_vol = vol_loss_func(pred_vol, vol, args)
             loss = loss_gt + loss_vol
             loss.backward()
+            
             total_loss += loss.item()
             cur_loss += loss.item()
+            vol_loss = loss_vol.item()
+            gt_loss = loss_gt.item()
 
             optimizer.step()
             if idx%args.log_interval==(args.log_interval-1):
                 print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
                 wandb.log({"loss": cur_loss/args.log_interval})
+                wandb.log({"vol loss": vol_loss/args.log_interval})
+                wandb.log({"gt loss": gt_loss/args.log_interval})
+
                 cur_loss = 0.0
+                vol_loss = 0.0
+                gt_loss = 0.0
                 sys.stdout.flush()
 
         print('[{:2d}, train] avg_loss : {:.5f}'.format(epoch, total_loss/len(loader)))
