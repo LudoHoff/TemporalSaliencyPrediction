@@ -3,6 +3,7 @@ import glob, os
 import torch
 import sys
 import time
+import wandb
 import torch.nn as nn
 import pickle
 from torch.distributions.multivariate_normal import MultivariateNormal as Norm
@@ -22,6 +23,7 @@ from loss import *
 import cv2
 from utils import blur, AverageMeter
 
+wandb.init(project="saliency")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--no_epochs',default=40, type=int)
@@ -96,6 +98,7 @@ if torch.cuda.device_count() > 1:
 	print("Let's use", torch.cuda.device_count(), "GPUs!")
 	model = nn.DataParallel(model)
 model.to(device)
+wandb.watch(model)
 
 train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
 val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
@@ -146,6 +149,7 @@ def train(model, optimizer, loader, epoch, device, args):
         optimizer.step()
         if idx%args.log_interval==(args.log_interval-1):
             print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
+            wandb.log({"loss": cur_loss/args.log_interval})
             cur_loss = 0.0
             sys.stdout.flush()
 
@@ -180,6 +184,7 @@ def validate(model, loader, epoch, device, args):
         sim_loss.update(similarity(blur_map, gt))
 
     print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
+    wandb.log({"CC": cc_loss.avg, 'KLDIV': kldiv_loss.avg, 'NSS': nss_loss.avg, 'SIM': sim_loss.avg})
     sys.stdout.flush()
 
     return cc_loss.avg
