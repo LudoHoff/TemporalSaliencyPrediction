@@ -62,11 +62,11 @@ args = parser.parse_args()
 
 train_img_dir = args.dataset_dir + "images/train/"
 train_gt_dir = args.dataset_dir + "maps/train/"
-train_fix_dir = args.dataset_dir + "fixations/train/"
+train_fix_dir = args.dataset_dir + "fixation_maps/train/"
 
 val_img_dir = args.dataset_dir + "images/val/"
 val_gt_dir = args.dataset_dir + "maps/val/"
-val_fix_dir = args.dataset_dir + "fixations/val/"
+val_fix_dir = args.dataset_dir + "fixation_maps/val/"
 
 if args.enc_model == "pnas":
     print("PNAS Model")
