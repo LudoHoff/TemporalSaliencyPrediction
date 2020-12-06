@@ -139,7 +139,6 @@ def train(model, optimizer, loader, epoch, device, args):
 
         optimizer.zero_grad()
         pred_map = model(img)
-        print(pred_map.size())
         assert pred_map.size() == gt.size()
         loss = loss_func(pred_map, gt, fixations, args)
         loss.backward()
