@@ -54,7 +54,7 @@ def img_save(tensor, fp, nrow=8, padding=2,
     
     ndarr = torch.round(grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0)).to('cpu', torch.uint8).numpy()
     im = Image.fromarray(ndarr[:,:,0])
-    fp = fp.split('.')[0] + ".png"
+    fp = fp[:-4] + '.png'
     im.save(fp, format=format, compress_level=0)
 
 class AverageMeter(object):
