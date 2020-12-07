@@ -100,11 +100,11 @@ def cc(s_map, gt):
 
 def nss(s_map, gt):
     if s_map.size() != gt.size():
-        s_map = s_map.cpu().squeeze(0).numpy()
-        s_map = torch.FloatTensor(cv2.resize(s_map, (gt.size(2), gt.size(1)))).unsqueeze(0)
+        s_map = s_map.cpu().detach().numpy()
+        s_map = torch.FloatTensor([cv2.resize(map, (gt.size(2), gt.size(1))) for map in s_map])
         s_map = s_map.cuda()
         gt = gt.cuda()
-    # print(s_map.size(), gt.size())
+    print(s_map.size(), gt.size())
     assert s_map.size()==gt.size()
     batch_size = s_map.size(0)
     w = s_map.size(1)
