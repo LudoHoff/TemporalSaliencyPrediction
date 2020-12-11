@@ -47,7 +47,7 @@ val_fix_dir = args.dataset_dir + "fixation_maps/val/"
 val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/val/"
 val_pred_dir = args.dataset_dir + args.results_dir
 
-val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
+val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)][:10]
 val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_vol_dir, val_img_ids, args.time_slices)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
@@ -55,9 +55,9 @@ with torch.no_grad():
     model.eval()
     os.makedirs(val_pred_dir, exist_ok=True)
 
-    kl_avg = AverageMeter()
-    cc_avg = AverageMeter()
-    sim_avg = AverageMeter()
+    kl_avg = torch.FloatTensor([0.0]).to(device)
+    cc_avg = torch.FloatTensor([0.0]).to(device)
+    sim_avg = torch.FloatTensor([0.0]).to(device)
     
     for i, (img, gt, vol, fixations) in enumerate(tqdm(val_loader)):
         img = img.to(device)
@@ -77,9 +77,9 @@ with torch.no_grad():
             cc_loss += cc(pred_map, gt)
             sim_loss += similarity(pred_map, gt)
         
-        kl_avg.update(kl_loss / args.time_slices)
-        cc_avg.update(cc_loss / args.time_slices)
-        sim_avg.update(sim_loss / args.time_slices)
+        kl_avg += kl_loss / args.time_slices
+        cc_avg += cc_loss / args.time_slices
+        sim_avg += sim_loss / args.time_slices
 
         if i < args.samples:
             pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
@@ -99,7 +99,7 @@ with torch.no_grad():
 
             plt.close('all')
 
-    print('KLDIV : {:.5f}, CC : {:.5f}, SIM : {:.5f}'.format(kl_avg.avg, cc_avg.avg, sim_avg.avg))
+    print('KLDIV : {:.5f}, CC : {:.5f}, SIM : {:.5f}'.format(kl_avg / (i + 1), cc_avg / (i + 1), sim_avg / (i + 1)))
 
         
         
