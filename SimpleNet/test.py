@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 from torchvision import transforms, utils
 from PIL import Image
 from torch.utils.data import DataLoader
-import numpy as np, cv2
+import numpy as np
+import cv2
 import torch
 import torch.nn as nn
 import torch.nn.init as init

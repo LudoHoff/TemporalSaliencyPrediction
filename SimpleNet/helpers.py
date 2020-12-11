@@ -1,22 +1,26 @@
 import fnmatch
 import os
 import random
-import numpy as np
+import torch
+import cv2
 
-import scipy.io as sio
 from tqdm import tqdm
 from scipy.spatial import distance
+from math import pi, sqrt, exp
 
-import torch
+import numpy as np
+import scipy.io as sio
 import torch.nn as nn
 import torch.nn.functional as F
-from math import pi, sqrt, exp
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 W = 640
 H = 480
 TIMESPAN = 5000
 MAX_PIXEL_DISTANCE = 800
 ESTIMATED_TIMESTAMP_WEIGHT = 0.006
+RATIO = 0.9
 
 FIXATION_PATH = '../data/fixations/'
 PARS_FIX_PATH = '../data/parsed_fixations/'
@@ -111,6 +115,18 @@ def get_saliency_volume(fixation_volume, conv1D, conv2D, time_slices):
     saliency_volume = conv2D.forward(fixation_map)
     saliency_volume = conv1D.forward(saliency_volume)
     return saliency_volume / saliency_volume.max()
+
+def get_heat_image(image):
+    return cv2.cvtColor(cv2.applyColorMap(np.uint8(255 * image), cv2.COLORMAP_HOT), cv2.COLOR_BGR2RGB)
+
+def format_image(heatmap, image, max_value):
+    extended_map = heatmap / max_value
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    factors = np.clip(2 * extended_map, 0, 1)
+    hsv[:,:,1] = np.uint8(factors * hsv[:,:,1])
+    hsv[:,:,2] = np.uint8((RATIO * factors + (1 - RATIO)) * hsv[:,:,2])
+    
+    return get_heat_image(extended_map[:,:,np.newaxis]), cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
 def animate(maps, image, normalized=False):
     fig = plt.figure(figsize=(13, 6))
