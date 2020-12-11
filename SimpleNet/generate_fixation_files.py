@@ -27,5 +27,5 @@ def generate_fixation_files(path):
                             for key,valuesiter in groupby(fix_timestamps, key=itemgetter(0))])
         np.save(PARS_FIX_PATH + path + filenames[i] + '.npy', compressed)
 
-generate_fixation_files('train/')
+#generate_fixation_files('train/')
 generate_fixation_files('val/')

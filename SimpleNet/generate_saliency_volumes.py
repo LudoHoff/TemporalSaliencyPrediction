@@ -24,5 +24,5 @@ def generate_fixation_files(path, time_slices):
         for i, saliency_slice in enumerate(saliency_volume):
             cv2.imwrite(write_path + filename + '_' + str(i) + '.png', 255 * saliency_slice / saliency_slice.max())
 
-generate_fixation_files('train/', 10)
+#generate_fixation_files('train/', 10)
 generate_fixation_files('val/', 10)
