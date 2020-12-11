@@ -85,11 +85,26 @@ with torch.no_grad():
             pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
             pred_vol = np.swapaxes(cv2.resize(pred_vol, (H, W)), 0, -1)
 
+            print(pred_vol.shape)
+            print(pred_vol.min())
+            print(pred_vol.max())
+            print()
+
             vol = np.swapaxes(vol.squeeze(0).detach().cpu().numpy(), 0, -1)
             vol = np.swapaxes(cv2.resize(vol, (H, W)), 0, -1)
+
+            print(vol.shape)
+            print(vol.min())
+            print(vol.max())
+            print()
             
             img_path = os.path.join(val_img_dir, val_img_ids[i] + '.jpg')
             img = imread(img_path)
+
+            print(img.shape)
+            print(img.min())
+            print(img.max())
+            print()
 
             anim1 = animate(pred_vol, img, False)
             anim1.save(args.dataset_dir + args.results_dir + str(i) + '_predicted_volume.gif', writer=animation.PillowWriter(fps=10))
