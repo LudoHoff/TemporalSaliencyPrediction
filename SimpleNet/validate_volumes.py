@@ -62,7 +62,7 @@ with torch.no_grad():
         
         pred_vol, _ = model(img)
         pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
-        pred_vol = np.swapaxes(cv2.resize(pred_vol, img.size()), 0, -1)
+        pred_vol = np.swapaxes(cv2.resize(pred_vol, img.squeeze(0).squeeze(0).size()), 0, -1)
         
         kl = torch.FloatTensor([0.0]).cuda()
         cc = torch.FloatTensor([0.0]).cuda()
