@@ -90,11 +90,6 @@ class SaliconVolDataset(DataLoader):
         fixations = fixations.astype('float')
         fixations = (fixations > 0.5).astype('float')
 
-        print(saliency_volume.shape)
-        print(saliency_volume.min())
-        print(saliency_volume.max())
-        print()
-
         assert np.min(gt)>=0.0 and np.max(gt)<=1.0
         assert np.min(fixations)==0.0 and np.max(fixations)==1.0
         return img, torch.FloatTensor(gt), torch.FloatTensor(saliency_volume), torch.FloatTensor(fixations)
