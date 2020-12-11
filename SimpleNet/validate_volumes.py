@@ -12,6 +12,7 @@ from utils import *
 from helpers import *
 from model import PNASVolModel
 from loss import *
+from matplotlib.image import imread
 
 parser = argparse.ArgumentParser()
 
@@ -87,8 +88,8 @@ with torch.no_grad():
             vol = np.swapaxes(vol.squeeze(0).detach().cpu().numpy(), 0, -1)
             vol = np.swapaxes(cv2.resize(vol, (H, W)), 0, -1)
             
-            img_path = os.path.join(self.val_img_dir, val_img_ids[i] + '.jpg')
-            img = Image.open(img_path).convert('RGB')
+            img_path = os.path.join(val_img_dir, val_img_ids[i] + '.jpg')
+            img = imread(img_path)
 
             anim1 = animate(pred_vol, img, False)
             anim1.save(args.dataset_dir + args.results_dir + str(i) + '_predicted_volume.gif', writer=animation.PillowWriter(fps=10))
