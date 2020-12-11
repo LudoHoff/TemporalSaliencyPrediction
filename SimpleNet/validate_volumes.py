@@ -59,10 +59,15 @@ with torch.no_grad():
     
     for i, (img, gt, vol, fixations) in enumerate(tqdm(val_loader)):
         img = img.to(device)
+        print(img.size())
+        print(gt.size())
         
         pred_vol, _ = model(img)
+        print(pred_vol.size())
         pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
-        pred_vol = np.swapaxes(cv2.resize(pred_vol, img.squeeze(0).squeeze(0).size()), 0, -1)
+        print(pred_vol.size())
+        pred_vol = np.swapaxes(cv2.resize(pred_vol, (256, 256)), 0, -1)
+        print(pred_vol.size())
         
         kl = torch.FloatTensor([0.0]).cuda()
         cc = torch.FloatTensor([0.0]).cuda()
