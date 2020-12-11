@@ -111,3 +111,15 @@ def get_saliency_volume(fixation_volume, conv1D, conv2D, time_slices):
     saliency_volume = conv2D.forward(fixation_map)
     saliency_volume = conv1D.forward(saliency_volume)
     return saliency_volume / saliency_volume.max()
+
+def animate(maps, image, normalized=False):
+    fig = plt.figure(figsize=(13, 6))
+    max_value = np.max(maps);
+    formatted_images = []
+    
+    for map in maps:
+        heatmap, image_heatmap = format_image(map, image, np.max(map) if normalized else max_value)
+        im = plt.imshow(np.concatenate((heatmap, image_heatmap), 1), animated=True)
+        formatted_images.append([im])
+
+    return animation.ArtistAnimation(fig, formatted_images, interval=200, blit=True, repeat_delay=1000)

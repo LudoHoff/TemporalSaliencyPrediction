@@ -4,3 +4,4 @@
 *.pth
 */__pycache__
 *.pt
+SimpleNet/wandb/

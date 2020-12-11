@@ -3,7 +3,6 @@ import glob, os
 import torch
 import sys
 import time
-import torch.nn as nn
 import pickle
 from torch.distributions.multivariate_normal import MultivariateNormal as Norm
 from torch.autograd import Variable
