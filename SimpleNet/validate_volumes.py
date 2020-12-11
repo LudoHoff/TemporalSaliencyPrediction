@@ -9,7 +9,7 @@ import torch.nn as nn
 from dataloader import SaliconVolDataset
 from tqdm import tqdm
 from utils import *
-from helpers import animate
+from helpers import *
 from model import PNASVolModel
 from loss import *
 
@@ -68,9 +68,9 @@ with torch.no_grad():
         cc_loss = torch.FloatTensor([0.0]).to(device)
         sim_loss = torch.FloatTensor([0.0]).to(device)
 
-        for i in range(args.time_slices):
-            pred_map = pred_vol[0,i]
-            gt = vol[0,i]
+        for slice in range(args.time_slices):
+            pred_map = pred_vol[0,slice].unsqueeze(0)
+            gt = vol[0,slice].unsqueeze(0)
 
             kl_loss += kldiv(pred_map, gt)
             cc_loss += cc(pred_map, gt)
@@ -82,16 +82,23 @@ with torch.no_grad():
 
         if i < args.samples:
             pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
-            pred_vol = np.swapaxes(cv2.resize(pred_vol, (W, H)), 0, -1)
+            pred_vol = np.swapaxes(cv2.resize(pred_vol, (H, W)), 0, -1)
 
             vol = np.swapaxes(vol.squeeze(0).detach().cpu().numpy(), 0, -1)
-            vol = np.swapaxes(cv2.resize(vol, (W, H)), 0, -1)
+            vol = np.swapaxes(cv2.resize(vol, (H, W)), 0, -1)
+            
+            img = np.swapaxes(img.squeeze(0).detach().cpu().numpy(), 0, -1)
+            img = np.swapaxes(cv2.resize(img, (H, W)), 0, 1)
+
+            print(pred_vol.shape)
+            print(vol.shape)
+            print(img.shape)
 
             anim1 = animate(pred_vol, img, False)
-            anim1.save(str(i) + '_predicted_volume.gif', writer=animation.PillowWriter(fps=10))
+            anim1.save(args.dataset_dir + args.results_dir + str(i) + '_predicted_volume.gif', writer=animation.PillowWriter(fps=10))
 
             anim2 = animate(vol, img, False)
-            anim2.save(str(i) + '_ground_truth_volume.gif', writer=animation.PillowWriter(fps=10))
+            anim2.save(args.dataset_dir + args.results_dir + str(i) + '_ground_truth_volume.gif', writer=animation.PillowWriter(fps=10))
 
     print('KLDIV : {:.5f}, CC : {:.5f}, SIM : {:.5f}'.format(kl_avg.avg, cc_avg.avg, sim_avg.avg))
 
