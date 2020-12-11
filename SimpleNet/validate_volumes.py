@@ -46,7 +46,7 @@ val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "
 val_pred_dir = args.dataset_dir + args.results_dir
 
 val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
-val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
+val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_vol_dir, val_img_ids, args.time_slices)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
 with torch.no_grad():
