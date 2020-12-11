@@ -60,11 +60,13 @@ with torch.no_grad():
     
     for i, (img, gt, vol, fixations) in enumerate(tqdm(val_loader)):
         img = img.to(device)
+        gt = gt.to(device)
+        vol = vol.to(device)
         pred_vol, _ = model(img)
         
-        kl = torch.FloatTensor([0.0]).cuda()
-        cc = torch.FloatTensor([0.0]).cuda()
-        sim = torch.FloatTensor([0.0]).cuda()
+        kl = torch.FloatTensor([0.0]).to(device)
+        cc = torch.FloatTensor([0.0]).to(device)
+        sim = torch.FloatTensor([0.0]).to(device)
 
         for i in range(args.time_slices):
             pred_map = pred_vol[i]
