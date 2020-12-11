@@ -10,8 +10,6 @@ from tqdm import tqdm
 from utils import *
 from helpers import animate
 from model import PNASVolModel
-import matplotlib
-matplotlib.use('Agg')
 
 parser = argparse.ArgumentParser()
 
@@ -26,6 +24,7 @@ args = parser.parse_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = PNASVolModel(args.time_slices)
+model = nn.DataParallel(model)
 state_dict = torch.load(args.model_val_path)
 new_state_dict = OrderedDict()
 
