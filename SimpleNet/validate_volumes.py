@@ -1,7 +1,6 @@
 import argparse
 import os
 import torch
-import pickle
 from torch.autograd import Variable
 from collections import OrderedDict
 from torch.utils.data import DataLoader
@@ -11,6 +10,8 @@ from tqdm import tqdm
 from utils import *
 from helpers import animate
 from model import PNASVolModel
+import matplotlib
+matplotlib.use('Agg')
 
 parser = argparse.ArgumentParser()
 
@@ -19,9 +20,11 @@ parser.add_argument('--no_workers',default=4, type=int)
 parser.add_argument('--results_dir',default="volume_predictions_10/val/", type=str)
 parser.add_argument('--time_slices',default=10, type=int)
 parser.add_argument('--samples',default=50, type=int)
+parser.add_argument('--no_workers',default=4, type=int)
 parser.add_argument('--dataset_dir',default="../data/", type=str)
 
 args = parser.parse_args()
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = PNASVolModel(args.time_slices)
 state_dict = torch.load(args.model_val_path)
