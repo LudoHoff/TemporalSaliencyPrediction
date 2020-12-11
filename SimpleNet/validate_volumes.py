@@ -6,7 +6,7 @@ from collections import OrderedDict
 from torch.utils.data import DataLoader
 import numpy as np, cv2
 import torch.nn as nn
-from dataloader import SaliconDataset
+from dataloader import SaliconVolDataset
 from tqdm import tqdm
 from utils import *
 from helpers import animate
