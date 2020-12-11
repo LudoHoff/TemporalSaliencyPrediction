@@ -69,8 +69,8 @@ with torch.no_grad():
         sim_loss = torch.FloatTensor([0.0]).to(device)
 
         for i in range(args.time_slices):
-            pred_map = pred_vol[i]
-            gt = vol[i]
+            pred_map = pred_vol[0,i]
+            gt = vol[0,i]
 
             kl_loss += kldiv(pred_map, gt)
             cc_loss += cc(pred_map, gt)
