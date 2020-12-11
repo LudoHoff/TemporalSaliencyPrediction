@@ -5,6 +5,7 @@ from torch.autograd import Variable
 from collections import OrderedDict
 from torch.utils.data import DataLoader
 import numpy as np, cv2
+import torch.nn as nn
 from dataloader import SaliconDataset
 from tqdm import tqdm
 from utils import *
