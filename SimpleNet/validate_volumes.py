@@ -16,7 +16,6 @@ matplotlib.use('Agg')
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--model_val_path',default="model.pt", type=str)
-parser.add_argument('--no_workers',default=4, type=int)
 parser.add_argument('--results_dir',default="volume_predictions_10/val/", type=str)
 parser.add_argument('--time_slices',default=10, type=int)
 parser.add_argument('--samples',default=50, type=int)
