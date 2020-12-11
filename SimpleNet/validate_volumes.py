@@ -64,21 +64,21 @@ with torch.no_grad():
         vol = vol.to(device)
         pred_vol, _ = model(img)
         
-        kl = torch.FloatTensor([0.0]).to(device)
-        cc = torch.FloatTensor([0.0]).to(device)
-        sim = torch.FloatTensor([0.0]).to(device)
+        kl_loss = torch.FloatTensor([0.0]).to(device)
+        cc_loss = torch.FloatTensor([0.0]).to(device)
+        sim_loss = torch.FloatTensor([0.0]).to(device)
 
         for i in range(args.time_slices):
             pred_map = pred_vol[i]
             gt = vol[i]
 
-            kl += kldiv(pred_map, gt)
-            cc += cc(pred_map, gt)
-            sim += similarity(pred_map, gt)
+            kl_loss += kldiv(pred_map, gt)
+            cc_loss += cc(pred_map, gt)
+            sim_loss += similarity(pred_map, gt)
         
-        kl_avg.update(kl / args.time_slices)
-        cc_avg.update(cc / args.time_slices)
-        sim_avg.update(sim / args.time_slices)
+        kl_avg.update(kl_loss / args.time_slices)
+        cc_avg.update(cc_loss / args.time_slices)
+        sim_avg.update(sim_loss / args.time_slices)
 
         if i < args.samples:
             pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
