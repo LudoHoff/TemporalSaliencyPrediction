@@ -5,7 +5,7 @@ import cv2
 
 def generate_fixation_files(path, time_slices):
     print('Parsing fixations of ' + path + '...')
-    filenames = [nm.split(".")[0] for nm in os.listdir(FIXATION_PATH + path)][0:10]
+    filenames = [nm.split(".")[0] for nm in os.listdir(FIXATION_PATH + path)]
     fixation_volumes = parse_fixations(filenames, FIXATION_PATH + path)
 
     write_path = SAL_VOL_PATH + str(time_slices)
