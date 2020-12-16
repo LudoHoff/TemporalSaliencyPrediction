@@ -41,8 +41,8 @@ def generate_fixation_files(path, time_slices):
         saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy(), 0, -1)
         saliency_volume = np.swapaxes(cv2.resize(saliency_volume, (256,256)), 0, -1)
 
-        for i, saliency_slice in enumerate(saliency_volume):
-            cv2.imwrite(write_path + filenames[i] + '_' + str(i) + '.png', 255 * saliency_slice / saliency_slice.max())
+        for j, saliency_slice in enumerate(saliency_volume):
+            cv2.imwrite(write_path + filenames[i] + '_' + str(j) + '.png', 255 * saliency_slice / saliency_slice.max())
         
 
 generate_fixation_files('train/', 5)
