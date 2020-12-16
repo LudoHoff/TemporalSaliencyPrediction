@@ -23,7 +23,6 @@ ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 RATIO = 0.9
 
 FIXATION_PATH = '../data/fixations/'
-PARS_FIX_PATH = '../data/parsed_fixations/'
 FIX_MAP_PATH = '../data/fixation_maps/'
 SAL_VOL_PATH = '../data/saliency_volumes_'
 
