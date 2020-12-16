@@ -23,7 +23,7 @@ def generate_fixation_files(path, time_slices):
     for i, fixation_volume in enumerate(tqdm(fixation_volumes)):
         fix_timestamps = sorted([fixation for fix_timestamps in fixation_volume
                                         for fixation in fix_timestamps], key=lambda x: x[0])
-        fix_timestamps = np.array([(int(ts * 10 / TIMESPAN), (x, y)) for (ts, (x, y)) in fix_timestamps])
+        fix_timestamps = np.array([(int(ts * time_slices / TIMESPAN), (x, y)) for (ts, (x, y)) in fix_timestamps])
 
         # Saving fixation map
         fix_map = np.zeros(shape=(W,H))
@@ -45,5 +45,5 @@ def generate_fixation_files(path, time_slices):
             cv2.imwrite(write_path + filenames[i] + '_' + str(i) + '.png', 255 * saliency_slice / saliency_slice.max())
         
 
-#generate_fixation_files('train/', 10)
-generate_fixation_files('val/', 10)
+generate_fixation_files('train/', 5)
+generate_fixation_files('val/', 5)
