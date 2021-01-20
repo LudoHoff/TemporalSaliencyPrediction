@@ -160,6 +160,7 @@ class PNASVolModel(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels = time_slices + 1, out_channels = time_slices + 1, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
+            # Fully connected layers
             nn.Conv2d(in_channels = time_slices + 1, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
