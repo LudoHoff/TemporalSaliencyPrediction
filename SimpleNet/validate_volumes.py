@@ -17,7 +17,7 @@ from matplotlib.image import imread
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--model_val_path',default="model.pt", type=str)
-parser.add_argument('--time_slices',default=10, type=int)
+parser.add_argument('--time_slices',default=5, type=int)
 parser.add_argument('--samples',default=50, type=int)
 parser.add_argument('--no_workers',default=4, type=int)
 parser.add_argument('--dataset_dir',default="../data/", type=str)
@@ -41,14 +41,12 @@ model.load_state_dict(new_state_dict)
 model = model.to(device)
 
 val_img_dir = args.dataset_dir + "images/val/"
-val_gt_dir = args.dataset_dir + "maps/val/"
-val_fix_dir = args.dataset_dir + "fixation_maps/val/"
 val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/val/"
 val_pred_dir = args.dataset_dir + "volumes/predictions/"
 val_vol_gt_dir = args.dataset_dir + "volumes/ground_truths/"
 
 val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
-val_dataset = SaliconVolDataset(val_img_dir, val_gt_dir, val_fix_dir, val_vol_dir, val_img_ids, args.time_slices)
+val_dataset = SaliconVolDataset(val_img_dir, val_vol_dir, val_img_ids, args.time_slices)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
 with torch.no_grad():
@@ -56,51 +54,45 @@ with torch.no_grad():
     os.makedirs(val_pred_dir, exist_ok=True)
     os.makedirs(val_vol_gt_dir, exist_ok=True)
 
-    kl_avg = torch.FloatTensor([0.0]).to(device)
-    cc_avg = torch.FloatTensor([0.0]).to(device)
-    sim_avg = torch.FloatTensor([0.0]).to(device)
+    cc_loss = AverageMeter()
+    kldiv_loss = AverageMeter()
+    nss_loss = AverageMeter()
+    sim_loss = AverageMeter()
     
-    for i, (img, gt, vol, fixations) in enumerate(tqdm(val_loader)):
+    for idx, (img, gt_vol) in enumerate(tqdm(val_loader)):
         img = img.to(device)
-        gt = gt.to(device)
-        vol = vol.to(device)
-        pred_vol, _ = model(img)
-        
-        kl_loss = torch.FloatTensor([0.0]).to(device)
-        cc_loss = torch.FloatTensor([0.0]).to(device)
-        sim_loss = torch.FloatTensor([0.0]).to(device)
+        gt_vol = gt_vol.to(device)
+        pred_vol = model(img)
 
-        for slice in range(args.time_slices):
-            pred_map = pred_vol[0,slice].unsqueeze(0)
-            gt = vol[0,slice].unsqueeze(0)
+        for i in range(pred_vol.size()[0]):
+            pred_map = pred_vol[i]
+            blur_map = pred_map.cpu().squeeze(0).clone().numpy()
+            blur_map = blur(blur_map).to(device)
 
-            kl_loss += kldiv(pred_map, gt)
-            cc_loss += cc(pred_map, gt)
-            sim_loss += similarity(pred_map, gt)
-        
-        kl_avg += kl_loss / args.time_slices
-        cc_avg += cc_loss / args.time_slices
-        sim_avg += sim_loss / args.time_slices
+            cc_loss.update(cc(blur_map, gt_vol[i]))
+            kldiv_loss.update(kldiv(blur_map, gt_vol[i]))
+            nss_loss.update(nss(blur_map, gt_vol[i]))
+            sim_loss.update(similarity(blur_map, gt_vol[i]))
 
-        if i < args.samples:
+        if idx < args.samples:
             pred_vol = np.swapaxes(pred_vol.squeeze(0).detach().cpu().numpy(), 0, -1)
             pred_vol = np.swapaxes(cv2.resize(pred_vol, (H, W)), 0, -1)
 
             vol = np.swapaxes(vol.squeeze(0).detach().cpu().numpy(), 0, -1)
             vol = np.swapaxes(cv2.resize(vol, (H, W)), 0, -1)
             
-            img_path = os.path.join(val_img_dir, val_img_ids[i] + '.jpg')
+            img_path = os.path.join(val_img_dir, val_img_ids[idx] + '.jpg')
             img = imread(img_path)
 
             anim1 = animate(pred_vol, img, False)
-            anim1.save(val_pred_dir + val_img_ids[i] + '.gif', writer=animation.PillowWriter(fps=10))
+            anim1.save(val_pred_dir + val_img_ids[idx] + '.gif', writer=animation.PillowWriter(fps=2))
 
             anim2 = animate(vol, img, False)
-            anim2.save(val_vol_gt_dir + val_img_ids[i] + '.gif', writer=animation.PillowWriter(fps=10))
+            anim2.save(val_vol_gt_dir + val_img_ids[idx] + '.gif', writer=animation.PillowWriter(fps=2))
 
             plt.close('all')
 
-    print('KLDIV : {:.5f}, CC : {:.5f}, SIM : {:.5f}'.format(kl_avg.item() / (i + 1), cc_avg.item() / (i + 1), sim_avg.item() / (i + 1)))
+    print('KLDIV : {:.5f}, CC : {:.5f}, SIM : {:.5f}'.format(kl_avg.item() / (idx + 1), cc_avg.item() / (idx + 1), sim_avg.item() / (idx + 1)))
 
         
         

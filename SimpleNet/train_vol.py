@@ -39,7 +39,7 @@ if __name__ == '__main__':
     wandb.init(project="saliency")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--no_epochs',default=40, type=int)
+    parser.add_argument('--no_epochs',default=10, type=int)
     parser.add_argument('--lr',default=1e-4, type=float)
     parser.add_argument('--kldiv',default=True, type=bool)
     parser.add_argument('--cc',default=True, type=bool)
@@ -69,19 +69,15 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size',default=32, type=int)
     parser.add_argument('--log_interval',default=60, type=int)
     parser.add_argument('--no_workers',default=4, type=int)
-    parser.add_argument('--time_slices',default=10, type=int)
+    parser.add_argument('--time_slices',default=5, type=int)
     parser.add_argument('--model_val_path',default="model.pt", type=str)
 
     args = parser.parse_args()
 
     train_img_dir = args.dataset_dir + "images/train/"
-    train_gt_dir = args.dataset_dir + "maps/train/"
-    train_fix_dir = args.dataset_dir + "fixation_maps/train/"
     train_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/train/"
 
     val_img_dir = args.dataset_dir + "images/val/"
-    val_gt_dir = args.dataset_dir + "maps/val/"
-    val_fix_dir = args.dataset_dir + "fixation_maps/val/"
     val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/val/"
 
     print("PNAS with saliency volume Model")
@@ -97,34 +93,19 @@ if __name__ == '__main__':
     train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
     val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
 
-    train_dataset = SaliconVolDataset(train_img_dir, train_gt_dir, train_fix_dir, train_vol_dir, train_img_ids, args.time_slices)
-    val_dataset = SaliconDataset(val_img_dir, val_gt_dir, val_fix_dir, val_img_ids)
+    train_dataset = SaliconVolDataset(train_img_dir, train_vol_dir, train_img_ids, args.time_slices)
+    val_dataset = SaliconVolDataset(val_img_dir, val_vol_dir, val_img_ids, args.time_slices)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
-    def loss_func(pred_map, gt, fixations, args):
-        loss = torch.FloatTensor([0.0]).cuda()
-        criterion = nn.L1Loss()
-        if args.kldiv:
-            loss += args.kldiv_coeff * kldiv(pred_map, gt)
-        if args.cc:
-            loss += args.cc_coeff * cc(pred_map, gt)
-        if args.nss:
-            loss += args.nss_coeff * nss(pred_map, fixations)
-        if args.l1:
-            loss += args.l1_coeff * criterion(pred_map, gt)
-        if args.sim:
-            loss += args.sim_coeff * similarity(pred_map, gt)
-        return loss
-
-    def vol_loss_func(pred_vol, vol, args):
+    def loss_func(pred_vol, gt_vol, args):
         loss = torch.FloatTensor([0.0]).cuda()
         criterion = nn.L1Loss()
 
         for i in range(pred_vol.size()[0]):
             pred_map = pred_vol[i]
-            gt = vol[i]
+            gt = gt_vol[i]
             if args.kldiv:
                 loss += args.kldiv_coeff * kldiv(pred_map, gt)
             if args.cc:
@@ -134,46 +115,31 @@ if __name__ == '__main__':
             if args.sim:
                 loss += args.sim_coeff * similarity(pred_map, gt)
         return loss / pred_vol.size()[0]
-
+    
     def train(model, optimizer, loader, epoch, device, args):
         model.train()
         tic = time.time()
 
         total_loss = 0.0
         cur_loss = 0.0
-        vol_loss = 0.0
-        gt_loss = 0.0
 
-        for idx, (img, gt, vol, fixations) in enumerate(loader):
+        for idx, (img, gt_vol) in enumerate(loader):
             img = img.to(device)
-            gt = gt.to(device)
-            vol = vol.to(device)
-            fixations = fixations.to(device)
+            gt_vol = gt_vol.to(device)
 
             optimizer.zero_grad()
-            pred_vol, pred_map = model(img)
-            assert pred_vol.size() == vol.size()
-            assert pred_map.size() == gt.size()
-            loss_gt = loss_func(pred_map, gt, fixations, args)
-            loss_vol = vol_loss_func(pred_vol, vol, args)
-            loss = args.loss_gt_coeff * loss_gt + args.loss_vol_coeff * loss_vol
+            pred_vol = model(img)
+            assert pred_vol.size() == gt_vol.size()
+            loss = loss_func(pred_vol, gt_vol, args)
             loss.backward()
-
             total_loss += loss.item()
             cur_loss += loss.item()
-            vol_loss += loss_vol.item()
-            gt_loss += loss_gt.item()
 
             optimizer.step()
             if idx%args.log_interval==(args.log_interval-1):
                 print('[{:2d}, {:5d}] avg_loss : {:.5f}, time:{:3f} minutes'.format(epoch, idx, cur_loss/args.log_interval, (time.time()-tic)/60))
                 wandb.log({"loss": cur_loss/args.log_interval})
-                wandb.log({"vol loss": vol_loss/args.log_interval})
-                wandb.log({"gt loss": gt_loss/args.log_interval})
-
                 cur_loss = 0.0
-                vol_loss = 0.0
-                gt_loss = 0.0
                 sys.stdout.flush()
 
         print('[{:2d}, train] avg_loss : {:.5f}'.format(epoch, total_loss/len(loader)))
@@ -190,21 +156,21 @@ if __name__ == '__main__':
         nss_loss = AverageMeter()
         sim_loss = AverageMeter()
 
-        for (img, gt, fixations) in loader:
+        for idx, (img, gt_vol) in enumerate(loader):
             img = img.to(device)
-            gt = gt.to(device)
-            fixations = fixations.to(device)
-
-            _, pred_map = model(img)
+            gt_vol = gt_vol.to(device)
+            pred_vol = model(img)
 
             # Blurring
-            blur_map = pred_map.cpu().squeeze(0).clone().numpy()
-            blur_map = blur(blur_map).unsqueeze(0).to(device)
+            for i in range(pred_vol.size()[0]):
+                pred_map = pred_vol[i]
+                blur_map = pred_map.cpu().squeeze(0).clone().numpy()
+                blur_map = blur(blur_map).to(device)
 
-            cc_loss.update(cc(blur_map, gt))
-            kldiv_loss.update(kldiv(blur_map, gt))
-            nss_loss.update(nss(blur_map, gt))
-            sim_loss.update(similarity(blur_map, gt))
+                cc_loss.update(cc(blur_map, gt_vol[i]))
+                kldiv_loss.update(kldiv(blur_map, gt_vol[i]))
+                nss_loss.update(nss(blur_map, gt_vol[i]))
+                sim_loss.update(similarity(blur_map, gt_vol[i]))
 
         print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
         wandb.log({"CC": cc_loss.avg, 'KLDIV': kldiv_loss.avg, 'NSS': nss_loss.avg, 'SIM': sim_loss.avg})
