@@ -1,31 +1,17 @@
 import matplotlib
 import argparse
-import glob, os
-import pickle
+import os
 import torch
 import wandb
 import time
 import sys
-import cv2
 
-import matplotlib.pyplot as plt
-import torch.nn.functional as F
-import torch.nn.init as init
 import torch.nn as nn
-import numpy as np
 
-from torch.distributions.multivariate_normal import MultivariateNormal as Norm
 from multiprocessing import set_start_method
-from scipy.stats import multivariate_normal
-from torchvision import transforms, utils
 from dataloader import SaliconVolDataset
-from dataloader import SaliconDataset
-from torch.utils.data import DataLoader
-from utils import blur, AverageMeter
-from torch.autograd import Variable
-from model import PNASVolModel
-from PIL import Image
-from helpers import *
+from model import PNASVolModel, VolModel
+from utils import *
 from loss import *
 
 matplotlib.use('Agg')
@@ -51,7 +37,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr_sched',default=False, type=bool)
     parser.add_argument('--dilation',default=False, type=bool)
     parser.add_argument('--optim',default="Adam", type=str)
+    parser.add_argument('--model',default="PNASVol", type=str)
 
+    parser.add_argument('--normalize',default=False, type=str)
     parser.add_argument('--load_weight',default=1, type=int)
     parser.add_argument('--kldiv_coeff',default=1.0, type=float)
     parser.add_argument('--step_size',default=5, type=int)
@@ -61,8 +49,9 @@ if __name__ == '__main__':
     parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
     parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
     parser.add_argument('--l1_coeff',default=1.0, type=float)
-    parser.add_argument('--loss_gt_coeff',default=1.0, type=float)
-    parser.add_argument('--loss_vol_coeff',default=0.25, type=float)
+    parser.add_argument('--loss_coeff',default=0.0, type=float)
+    parser.add_argument('--loss_rescaling',default=None, type=str)
+    parser.add_argument('--loss_rescaling_delay',default=0, type=int)
     parser.add_argument('--train_enc',default=1, type=int)
 
     parser.add_argument('--dataset_dir',default="../data/", type=str)
@@ -70,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('--log_interval',default=60, type=int)
     parser.add_argument('--no_workers',default=4, type=int)
     parser.add_argument('--time_slices',default=5, type=int)
-    parser.add_argument('--model_val_path',default="model.pt", type=str)
+    parser.add_argument('--model_val_path',default="../models/model.pt", type=str)
 
     args = parser.parse_args()
 
@@ -81,9 +70,20 @@ if __name__ == '__main__':
     val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/val/"
 
     print("PNAS with saliency volume Model")
-    model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def filter_params(params):
+        return list(filter(lambda p: p.requires_grad, params))
+
+    if args.model == 'PNASVol':
+        model = PNASVolModel(train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
+        params = filter_params(model.parameters())
+    elif args.model == 'Vol':
+        model = VolModel(device, train_enc=bool(args.train_enc), load_weight=args.load_weight, time_slices=args.time_slices)
+        models_params = [model.__dict__['model_' + str(i)].parameters() for i in range(args.time_slices)]
+        models_params = [param for model_params in models_params for param in model_params]
+        params = filter_params(model.parameters()) + filter_params(models_params)
+
     if torch.cuda.device_count() > 1:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
@@ -99,22 +99,40 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
-    def loss_func(pred_vol, gt_vol, args):
-        loss = torch.FloatTensor([0.0]).cuda()
+    def loss_func(pred_vol, gt_vol, epoch, args):
+        losses = torch.zeros(args.time_slices).cuda()
         criterion = nn.L1Loss()
 
-        for i in range(pred_vol.size()[0]):
-            pred_map = pred_vol[i]
-            gt = gt_vol[i]
+        for i in range(args.time_slices):
+            pred_map = pred_vol[:,i]
+            gt = gt_vol[:,i]
             if args.kldiv:
-                loss += args.kldiv_coeff * kldiv(pred_map, gt)
+                losses[i] += args.kldiv_coeff * kldiv(pred_map, gt)
             if args.cc:
-                loss += args.cc_coeff * cc(pred_map, gt)
+                losses[i] += args.cc_coeff * cc(pred_map, gt)
             if args.l1:
-                loss += args.l1_coeff * criterion(pred_map, gt)
+                losses[i] += args.l1_coeff * criterion(pred_map, gt)
             if args.sim:
-                loss += args.sim_coeff * similarity(pred_map, gt)
-        return loss / pred_vol.size()[0]
+                losses[i] += args.sim_coeff * similarity(pred_map, gt)
+
+        if epoch >= args.loss_rescaling_delay:
+            if args.loss_rescaling == 'min_max':
+                min_loss = torch.min(losses)
+                max_loss = torch.max(losses)
+                losses = losses * (1 + args.loss_coeff * (losses - min_loss) / (max_loss - min_loss))
+            elif args.loss_rescaling == 'power':
+                losses = losses * (losses / torch.min(losses)) ** args.loss_coeff
+            elif args.loss_rescaling == 'max':
+                losses = losses * (losses / torch.max(losses)) ** args.loss_coeff
+            elif args.loss_rescaling == 'diff':
+                min_loss = torch.min(losses)
+                losses = losses + args.loss_coeff * (losses - min_loss)
+            elif args.loss_rescaling == 'std':
+                losses = losses + args.loss_coeff * losses.std()
+            elif args.loss_rescaling == 'mean_diff':
+                losses = losses + (losses - losses.mean()).clip(min=0) ** args.loss_coeff
+
+        return torch.sum(losses) / args.time_slices
     
     def train(model, optimizer, loader, epoch, device, args):
         model.train()
@@ -123,14 +141,21 @@ if __name__ == '__main__':
         total_loss = 0.0
         cur_loss = 0.0
 
-        for idx, (img, gt_vol) in enumerate(loader):
+        for idx, (img, gt_vol, avg_vol) in enumerate(loader):
             img = img.to(device)
             gt_vol = gt_vol.to(device)
+            avg_vol = avg_vol.to(device)
 
             optimizer.zero_grad()
             pred_vol = model(img)
+            pred_vol = pred_vol / pred_vol.max()
+            
+            if args.normalize:
+                gt_vol = (gt_vol - avg_vol + 1) / 2
+            
             assert pred_vol.size() == gt_vol.size()
-            loss = loss_func(pred_vol, gt_vol, args)
+            assert pred_vol.size() == avg_vol.size()
+            loss = loss_func(pred_vol, gt_vol, epoch, args)
             loss.backward()
             total_loss += loss.item()
             cur_loss += loss.item()
@@ -150,35 +175,36 @@ if __name__ == '__main__':
     def validate(model, loader, epoch, device, args):
         model.eval()
         tic = time.time()
-        total_loss = 0.0
         cc_loss = AverageMeter()
         kldiv_loss = AverageMeter()
         nss_loss = AverageMeter()
         sim_loss = AverageMeter()
 
-        for idx, (img, gt_vol) in enumerate(loader):
+        for img, gt_vol, avg_vol in loader:
             img = img.to(device)
             gt_vol = gt_vol.to(device)
+            avg_vol = avg_vol.to(device)
+
             pred_vol = model(img)
+            if args.normalize:
+                pred_vol = pred_vol * 2 + avg_vol - 1
+                
+            pred_vol /= pred_vol.max()
 
             # Blurring
             for i in range(pred_vol.size()[0]):
                 pred_map = pred_vol[i]
-                blur_map = pred_map.cpu().squeeze(0).clone().numpy()
-                blur_map = blur(blur_map).to(device)
 
-                cc_loss.update(cc(blur_map, gt_vol[i]))
-                kldiv_loss.update(kldiv(blur_map, gt_vol[i]))
-                nss_loss.update(nss(blur_map, gt_vol[i]))
-                sim_loss.update(similarity(blur_map, gt_vol[i]))
+                cc_loss.update(cc(pred_map, gt_vol[i]))
+                kldiv_loss.update(kldiv(pred_map, gt_vol[i]))
+                nss_loss.update(nss(pred_map, gt_vol[i])) # replace GT by fixations
+                sim_loss.update(similarity(pred_map, gt_vol[i]))
 
         print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
         wandb.log({"CC": cc_loss.avg, 'KLDIV': kldiv_loss.avg, 'NSS': nss_loss.avg, 'SIM': sim_loss.avg})
         sys.stdout.flush()
 
         return cc_loss.avg
-
-    params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
     if args.optim=="Adam":
         optimizer = torch.optim.Adam(params, lr=args.lr)
@@ -196,15 +222,17 @@ if __name__ == '__main__':
 
         with torch.no_grad():
             cc_loss = validate(model, val_loader, epoch, device, args)
-            if epoch == 0 :
-                best_loss = cc_loss
-            if best_loss <= cc_loss:
-                best_loss = cc_loss
-                print('[{:2d},  save, {}]'.format(epoch, args.model_val_path))
-                if torch.cuda.device_count() > 1:
-                    torch.save(model.module.state_dict(), args.model_val_path)
-                else:
-                    torch.save(model.state_dict(), args.model_val_path)
+            
+            if epoch >= args.loss_rescaling_delay:
+                if epoch == args.loss_rescaling_delay:
+                    best_loss = cc_loss
+                if best_loss <= cc_loss:
+                    best_loss = cc_loss
+                    print('[{:2d},  save, {}]'.format(epoch, args.model_val_path))
+                    if torch.cuda.device_count() > 1:
+                        torch.save(model.module.state_dict(), args.model_val_path)
+                    else:
+                        torch.save(model.state_dict(), args.model_val_path)
             print()
 
         if args.lr_sched:

@@ -1,15 +1,5 @@
 import torch
-import torchvision
-import torch.nn as nn
-import torch.nn.functional as F
-import pytorch_ssim
-from torchsummary import summary
-from PIL import Image
-from torchvision.models import vgg19
-from torchvision import transforms
-from torch.autograd import Variable
 import numpy as np
-from torch.distributions.multivariate_normal import MultivariateNormal as Norm
 import cv2
 
 def kldiv(s_map, gt):
@@ -119,12 +109,11 @@ def nss(s_map, gt):
     count = torch.sum(gt.view(batch_size, -1), 1)
     return torch.mean(s_map / count)
 
-def auc_judd(saliencyMap, fixationMap, jitter=True, toPlot=False, normalize=False):
+def auc_judd(saliencyMap, fixationMap, jitter=True, normalize=False):
     # saliencyMap is the saliency map
     # fixationMap is the human fixation map (binary matrix)
     # jitter=True will add tiny non-zero random constant to all map locations to ensure
     #       ROC can be calculated robustly (to avoid uniform region)
-    # if toPlot=True, displays ROC curve
 
     # If there are no fixations to predict, return NaN
     if saliencyMap.size() != fixationMap.size():
@@ -192,23 +181,6 @@ def auc_judd(saliencyMap, fixationMap, jitter=True, toPlot=False, normalize=Fals
     score = np.trapz(tp, x=fp)
     allthreshes = np.insert(allthreshes, 0, 0)
     allthreshes = np.append(allthreshes, 1)
-
-    if toPlot:
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 2, 1)
-        ax.matshow(saliencyMap, cmap='gray')
-        ax.set_title('SaliencyMap with fixations to be predicted')
-        [y, x] = np.nonzero(fixationMap)
-        s = np.shape(saliencyMap)
-        plt.axis((-.5, s[1] - .5, s[0] - .5, -.5))
-        plt.plot(x, y, 'ro')
-
-        ax = fig.add_subplot(1, 2, 2)
-        plt.plot(fp, tp, '.b-')
-        ax.set_title('Area under ROC curve: ' + str(score))
-        plt.axis((0, 1, 0, 1))
-        plt.show()
 
     return score
 

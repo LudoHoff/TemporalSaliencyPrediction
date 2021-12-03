@@ -1,4 +1,4 @@
-from helpers import *
+from utils import *
 from operator import itemgetter
 from itertools import groupby
 import cv2
@@ -10,7 +10,7 @@ parser.add_argument('--time_slices', default=5, type=int)
 def generate_fixation_files(path, time_slices):
     print('Parsing fixations of ' + path + '...')
     filenames = [nm.split(".")[0] for nm in os.listdir(FIXATION_PATH + path)]
-
+    
     write_path = SAL_VOL_PATH + str(time_slices)
     if not os.path.exists(write_path):
         os.makedirs(write_path)
@@ -21,6 +21,8 @@ def generate_fixation_files(path, time_slices):
 
     conv1D = GaussianBlur1D(time_slices).cuda()
     conv2D = GaussianBlur2D().cuda()
+
+    average_volume = None
 
     print('Generating saliency volumes of ' + path + '...')
     for i, filename in enumerate(tqdm(filenames)):
@@ -42,11 +44,19 @@ def generate_fixation_files(path, time_slices):
                             for key,valuesiter in groupby(fix_timestamps, key=itemgetter(0))])
 
         saliency_volume = get_saliency_volume(compressed, conv1D, conv2D, time_slices)
-        saliency_volume = np.swapaxes(saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy(), 0, -1)
-        saliency_volume = np.swapaxes(saliency_volume, 0, -1)
+        saliency_volume = saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy()
 
         for j, saliency_slice in enumerate(saliency_volume):
-            cv2.imwrite(write_path + filenames[i] + '_' + str(j) + '.png', 255 * saliency_slice / saliency_slice.max())
+            cv2.imwrite(write_path + filenames[i] + '_' + str(j) + '.png', 255 * saliency_slice)
+
+        if average_volume is None:
+            average_volume = saliency_volume
+        else:
+            average_volume += saliency_volume
+    
+    average_volume /= len(filenames)
+    for i in range(len(average_volume)):
+        cv2.imwrite(write_path + 'average_' + str(i) + '.png', 255 * average_volume[i])
 
 args = parser.parse_args()
 time_slices = args.time_slices

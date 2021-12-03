@@ -1,7 +1,7 @@
+from time import time
 import torchvision.models as models
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import sys
 sys.path.append('../PNAS/')
 from PNASnet import *
@@ -142,15 +142,15 @@ class PNASVolModel(nn.Module):
         )
 
         self.deconv_layer5 = nn.Sequential(
-            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = 128, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
+            nn.Conv2d(in_channels = 64, out_channels = 32, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = 32, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
             nn.Sigmoid()
         )
 
     def forward(self, images):
-        batch_size = images.size(0)
-
         s0 = self.pnas.conv0(images)
         s0 = self.pnas.conv0_bn(s0)
         out1 = self.padding(s0)
@@ -186,61 +186,92 @@ class PNASVolModel(nn.Module):
         x = x.squeeze(1)
         return x
 
-class VolModel(nn.Module):
 
-    def __init__(self, time_slices, num_channels=3, train_enc=False, load_weight=1):
+class SimpleNet(nn.Module):
+    
+        def __init__(self):
+            super(SimpleNet, self).__init__()
+
+            self.linear_upsampling = nn.UpsamplingBilinear2d(scale_factor=2)
+
+            self.deconv_layer0 = nn.Sequential(
+                nn.Conv2d(in_channels = 4320, out_channels = 512, kernel_size=3, padding=1, bias = True),
+                nn.ReLU(inplace=True),
+                self.linear_upsampling
+            )
+
+            self.deconv_layer1 = nn.Sequential(
+                nn.Conv2d(in_channels = 512+2160, out_channels = 256, kernel_size = 3, padding = 1, bias = True),
+                nn.ReLU(inplace=True),
+                self.linear_upsampling
+            )
+            self.deconv_layer2 = nn.Sequential(
+                nn.Conv2d(in_channels = 1080+256, out_channels = 270, kernel_size = 3, padding = 1, bias = True),
+                nn.ReLU(inplace=True),
+                self.linear_upsampling
+            )
+            self.deconv_layer3 = nn.Sequential(
+                nn.Conv2d(in_channels = 540, out_channels = 96, kernel_size = 3, padding = 1, bias = True),
+                nn.ReLU(inplace=True),
+                self.linear_upsampling
+            )
+            self.deconv_layer4 = nn.Sequential(
+                nn.Conv2d(in_channels = 192, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+                nn.ReLU(inplace=True),
+                self.linear_upsampling
+            )
+
+            self.deconv_layer5 = nn.Sequential(
+                nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(in_channels = 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+                nn.Sigmoid()
+            )
+
+        def forward(self, pnas_output):
+            out1, out2, out3, out4, out5 = pnas_output
+            out5 = self.deconv_layer0(out5)
+
+            x = torch.cat((out5,out4), 1)
+            x = self.deconv_layer1(x)
+
+            x = torch.cat((x,out3), 1)
+            x = self.deconv_layer2(x)
+
+            x = torch.cat((x,out2), 1)
+            x = self.deconv_layer3(x)
+            x = torch.cat((x,out1), 1)
+
+            x = self.deconv_layer4(x)
+            
+            x = self.deconv_layer5(x)
+            x = x.squeeze(1)
+            return x
+
+
+class VolModel(nn.Module):
+    
+    def __init__(self, device, time_slices, num_channels=3, train_enc=False, load_weight=1):
         super(VolModel, self).__init__()
         self.path = '../PNAS/PNASNet-5_Large.pth'
+        self.time_slices = time_slices
 
         self.pnas = NetworkImageNet(216, 1001, 12, False, PNASNet)
+
+        self.padding = nn.ConstantPad2d((0,1,0,1),0)
+        self.drop_path_prob = 0
+        
         if load_weight:
             self.pnas.load_state_dict(torch.load(self.path))
 
         for param in self.pnas.parameters():
             param.requires_grad = train_enc
 
-        self.padding = nn.ConstantPad2d((0,1,0,1),0)
-        self.drop_path_prob = 0
+        for i in range(time_slices):
+            self.__dict__['model_' + str(i)] = SimpleNet().to(device)
 
-        self.linear_upsampling = nn.UpsamplingBilinear2d(scale_factor=2)
-
-        self.deconv_layer0 = nn.Sequential(
-            nn.Conv2d(in_channels = 4320, out_channels = 512, kernel_size=3, padding=1, bias = True),
-            nn.ReLU(inplace=True),
-            self.linear_upsampling
-        )
-
-        self.deconv_layer1 = nn.Sequential(
-            nn.Conv2d(in_channels = 512+2160, out_channels = 256, kernel_size = 3, padding = 1, bias = True),
-            nn.ReLU(inplace=True),
-            self.linear_upsampling
-        )
-        self.deconv_layer2 = nn.Sequential(
-            nn.Conv2d(in_channels = 1080+256, out_channels = 270, kernel_size = 3, padding = 1, bias = True),
-            nn.ReLU(inplace=True),
-            self.linear_upsampling
-        )
-        self.deconv_layer3 = nn.Sequential(
-            nn.Conv2d(in_channels = 540, out_channels = 96, kernel_size = 3, padding = 1, bias = True),
-            nn.ReLU(inplace=True),
-            self.linear_upsampling
-        )
-        self.deconv_layer4 = nn.Sequential(
-            nn.Conv2d(in_channels = 192, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
-            nn.ReLU(inplace=True),
-            self.linear_upsampling
-        )
-
-        self.deconv_layer5 = nn.Sequential(
-            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels = 128, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
-            nn.Sigmoid()
-        )
 
     def forward(self, images):
-        batch_size = images.size(0)
-
         s0 = self.pnas.conv0(images)
         s0 = self.pnas.conv0_bn(s0)
         out1 = self.padding(s0)
@@ -258,23 +289,35 @@ class VolModel(nn.Module):
             if i==11:
                 out5 = s1
 
-        out5 = self.deconv_layer0(out5)
+        preds = None
+        for i in range(self.time_slices):
+            pred = self.__dict__['model_' + str(i)]((out1, out2, out3, out4, out5))
+            pred = torch.unsqueeze(pred, 1)
 
-        x = torch.cat((out5,out4), 1)
-        x = self.deconv_layer1(x)
+            if preds == None:
+                preds = pred
+            else:
+                preds = torch.cat((preds, pred), 1)
 
-        x = torch.cat((x,out3), 1)
-        x = self.deconv_layer2(x)
+        return preds
+    # def __init__(self, time_slices, device, num_channels=3, train_enc=False, load_weight=1):
+    #     super(VolModel, self).__init__()
+    #     self.models = [PNASModel(num_channels=num_channels, train_enc=train_enc, load_weight=load_weight) for _ in range(time_slices)]
 
-        x = torch.cat((x,out2), 1)
-        x = self.deconv_layer3(x)
-        x = torch.cat((x,out1), 1)
+    #     for model in self.models:
+    #         model.to(device)
 
-        x = self.deconv_layer4(x)
+    # def forward(self, images):
+    #     preds = torch.zeros((images.size()[0], len(self.models), 256, 256)).cuda()
+
+    #     for i, pred in enumerate([model(images) for model in self.models]):
+    #         preds[:,i] = pred
         
-        x = self.deconv_layer5(x)
-        x = x.squeeze(1)
-        return x
+    #     return preds
+
+    # def params(self):
+    #     params_list = [model.parameters() for model in self.models]
+    #     return list(filter(lambda p: p.requires_grad, [param for params in params_list for param in params]))
 
 class DenseModel(nn.Module):
 
