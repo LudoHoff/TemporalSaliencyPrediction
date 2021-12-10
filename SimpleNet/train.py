@@ -56,6 +56,7 @@ parser.add_argument('--batch_size',default=32, type=int)
 parser.add_argument('--log_interval',default=60, type=int)
 parser.add_argument('--no_workers',default=4, type=int)
 parser.add_argument('--model_val_path',default="model.pt", type=str)
+parser.add_argument('--model_path',default="", type=str)
 
 
 args = parser.parse_args()
@@ -68,10 +69,17 @@ val_img_dir = args.dataset_dir + "images/val/"
 val_gt_dir = args.dataset_dir + "maps/val/"
 val_fix_dir = args.dataset_dir + "fixation_maps/val/"
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 if args.enc_model == "pnas":
     print("PNAS Model")
     from model import PNASModel
     model = PNASModel(train_enc=bool(args.train_enc), load_weight=args.load_weight)
+
+elif args.enc_model == "pnas_boosted":
+    print("PNAS Boosted Model")
+    from model import PNASBoostedModel
+    model = PNASBoostedModel(device, args.model_path, 5)
 
 elif args.enc_model == "densenet":
     print("DenseNet Model")
@@ -93,7 +101,6 @@ elif args.enc_model == "mobilenet":
     from model import MobileNetV2
     model = MobileNetV2(train_enc=bool(args.train_enc), load_weight=args.load_weight)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if torch.cuda.device_count() > 1:
 	print("Let's use", torch.cuda.device_count(), "GPUs!")
 	model = nn.DataParallel(model)

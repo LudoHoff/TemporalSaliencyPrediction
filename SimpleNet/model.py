@@ -2,6 +2,7 @@ from time import time
 import torchvision.models as models
 import torch
 import torch.nn as nn
+from collections import OrderedDict
 import sys
 sys.path.append('../PNAS/')
 from PNASnet import *
@@ -96,6 +97,125 @@ class PNASModel(nn.Module):
         x = x.squeeze(1)
         return x
 
+
+class PNASBoostedModel(nn.Module):
+
+    def __init__(self, device, model_path, time_slices, load_weight=1):
+        super(PNASBoostedModel, self).__init__()
+        self.path = '../PNAS/PNASNet-5_Large.pth'
+
+        self.pnas = NetworkImageNet(216, 1001, 12, False, PNASNet)
+        
+        model = PNASVolModel(time_slices=time_slices)
+        model = nn.DataParallel(model)
+        state_dict = torch.load(model_path)
+        new_state_dict = OrderedDict()
+
+        for k, v in state_dict.items():
+            if 'module' not in k:
+                k = 'module.' + k
+            else:
+                k = k.replace('features.module.', 'module.features.')
+            new_state_dict[k] = v
+
+        model.load_state_dict(new_state_dict)
+        self.pnas_vol = model.to(device)
+
+        if load_weight:
+            self.pnas.load_state_dict(torch.load(self.path))
+
+        for param in self.pnas.parameters():
+            param.requires_grad = False
+        
+        for param in self.pnas_vol.parameters():
+            param.requires_grad = False
+
+        self.padding = nn.ConstantPad2d((0,1,0,1),0)
+        self.drop_path_prob = 0
+
+        self.linear_upsampling = nn.UpsamplingBilinear2d(scale_factor=2)
+
+        self.deconv_layer0 = nn.Sequential(
+            nn.Conv2d(in_channels = 4320, out_channels = 512, kernel_size=3, padding=1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+
+        self.deconv_layer1 = nn.Sequential(
+            nn.Conv2d(in_channels = 512+2160, out_channels = 256, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer2 = nn.Sequential(
+            nn.Conv2d(in_channels = 1080+256, out_channels = 270, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer3 = nn.Sequential(
+            nn.Conv2d(in_channels = 540, out_channels = 96, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer4 = nn.Sequential(
+            nn.Conv2d(in_channels = 192, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            self.linear_upsampling
+        )
+        self.deconv_layer5 = nn.Sequential(
+            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = 128, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            nn.Sigmoid()
+        )
+
+        self.deconv_mix = nn.Sequential(
+            nn.Conv2d(in_channels = 1 + time_slices, out_channels = 1 + time_slices, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels = 1 + time_slices, out_channels = 1, kernel_size = 3, padding = 1, bias = True),
+            nn.Sigmoid()
+        )
+
+    def forward(self, images):
+        s0 = self.pnas.conv0(images)
+        s0 = self.pnas.conv0_bn(s0)
+        out1 = self.padding(s0)
+
+        s1 = self.pnas.stem1(s0, s0, self.drop_path_prob)
+        out2 = s1
+        s0, s1 = s1, self.pnas.stem2(s0, s1, 0)
+
+        for i, cell in enumerate(self.pnas.cells):
+            s0, s1 = s1, cell(s0, s1, 0)
+            if i==3:
+                out3 = s1
+            if i==7:
+                out4 = s1
+            if i==11:
+                out5 = s1
+
+        out5 = self.deconv_layer0(out5)
+
+        x = torch.cat((out5,out4), 1)
+        x = self.deconv_layer1(x)
+
+        x = torch.cat((x,out3), 1)
+        x = self.deconv_layer2(x)
+
+        x = torch.cat((x,out2), 1)
+        x = self.deconv_layer3(x)
+        x = torch.cat((x,out1), 1)
+
+        x = self.deconv_layer4(x)
+        
+        x = self.deconv_layer5(x)
+
+        x = torch.cat((x, self.pnas_vol(images)), 1)
+        x = self.deconv_mix(x)
+        x = x.squeeze(1)
+
+        return x
+
+
 class PNASVolModel(nn.Module):
 
     def __init__(self, time_slices, num_channels=3, train_enc=False, load_weight=1):
@@ -147,8 +267,20 @@ class PNASVolModel(nn.Module):
             nn.Conv2d(in_channels = 64, out_channels = 32, kernel_size = 3, padding = 1, bias = True),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels = 32, out_channels = time_slices, kernel_size = 3, padding = 1, bias = True),
+            nn.ReLU(inplace=True)
+        )
+
+        self.linear = nn.Sequential(
+            nn.Linear(time_slices, time_slices),
             nn.Sigmoid()
         )
+
+        # def init_weights(m):
+        #     if isinstance(m, nn.Linear):
+        #         torch.nn.init.xavier_uniform_(m.weight)
+        #         m.bias.data.fill_(0.01)
+
+        # self.linear.apply(init_weights)
 
     def forward(self, images):
         s0 = self.pnas.conv0(images)
@@ -181,9 +313,14 @@ class PNASVolModel(nn.Module):
         x = torch.cat((x,out1), 1)
 
         x = self.deconv_layer4(x)
-        
+
         x = self.deconv_layer5(x)
+        
         x = x.squeeze(1)
+        x = torch.transpose(x, 1, 3)
+        x = self.linear(x)
+        x = torch.transpose(x, 1, 3).contiguous() 
+
         return x
 
 

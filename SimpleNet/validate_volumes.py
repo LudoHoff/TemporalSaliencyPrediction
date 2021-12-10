@@ -74,7 +74,7 @@ with torch.no_grad():
             avg_vol = avg_vol.to(device).squeeze(0)
             pred_vol = pred_vol * 2 + avg_vol - 1
 
-        pred_vol /= pred_vol.max()
+        #pred_vol /= pred_vol.max()
 
         cc_loss.update(cc(pred_vol, gt_vol))
         kldiv_loss.update(kldiv(pred_vol, gt_vol))

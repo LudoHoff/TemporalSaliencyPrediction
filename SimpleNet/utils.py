@@ -25,8 +25,23 @@ ESTIMATED_TIMESTAMP_WEIGHT = 0.006
 RATIO = 0.9
 
 FIXATION_PATH = '../data/fixations/'
-FIX_MAP_PATH = '../data/fixation_maps/'
+FIX_VOL_PATH = '../data/fixation_volumes_'
 SAL_VOL_PATH = '../data/saliency_volumes_'
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+def get_colored_value(value, ref_value, increasing=True):
+    coef = 1 if increasing else -1
+    return (bcolors.FAIL if (coef * ref_value > coef * value) else bcolors.OKGREEN) + '{:.5f}'.format(value) + bcolors.ENDC
 
 def get_filenames(path):
     return [file for file in sorted(os.listdir(path)) if fnmatch.fnmatch(file, 'COCO_*')]
@@ -73,15 +88,14 @@ def parse_fixations(filenames,
 
     return fixation_volumes
 
-def get_saliency_volume(fixation_volume, conv1D, conv2D, time_slices):
+def get_saliency_volume(fixation_volume, conv2D, time_slices):
     fixation_map = torch.cuda.FloatTensor(time_slices,H,W).fill_(0)
 
     for ts, coords in fixation_volume:
         for (x, y) in coords:
-            fixation_map[ts-1,y-1,x-1] = 1
+            fixation_map[ts,y-1,x-1] = 1
 
     saliency_volume = conv2D.forward(fixation_map)
-    saliency_volume = conv1D.forward(saliency_volume)
     return saliency_volume / saliency_volume.max()
 
 def blur(img):

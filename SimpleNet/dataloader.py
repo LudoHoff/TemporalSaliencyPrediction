@@ -47,9 +47,10 @@ class SaliconDataset(DataLoader):
          return len(self.img_ids)
 
 class SaliconVolDataset(DataLoader):
-    def __init__(self, img_dir, vol_dir, img_ids, time_slices, exten='.png'):
+    def __init__(self, img_dir, vol_dir, fix_dir, img_ids, time_slices, exten='.png'):
         self.img_dir = img_dir
         self.vol_dir = vol_dir
+        self.fix_dir = fix_dir
         self.img_ids = img_ids
         self.time_slices = time_slices
         self.exten = exten
@@ -70,8 +71,8 @@ class SaliconVolDataset(DataLoader):
         gt_vol = np.zeros((self.time_slices, 256, 256))
         gt_vol.astype('float')
 
-        avg_vol = np.zeros((self.time_slices, 256, 256))
-        avg_vol.astype('float')
+        fix_vol = np.zeros((self.time_slices, 256, 256))
+        fix_vol.astype('float')
         
         for i in range(self.time_slices):
             gt_path = os.path.join(self.vol_dir, img_id + '_' + str(i) + self.exten)
@@ -83,17 +84,18 @@ class SaliconVolDataset(DataLoader):
 
             gt_vol[i] = gt
 
-            avg_path = os.path.join(self.vol_dir, 'average_' + str(i) + self.exten)
-            avg = np.array(Image.open(avg_path).convert('L'))
-            avg = avg.astype('float')
-            avg = cv2.resize(avg, (256,256))
-            if np.max(avg) > 1.0:
-                avg = avg / 255.0
+            fix_path = os.path.join(self.fix_dir, img_id + '_' + str(i) + self.exten)
+            fix = np.array(Image.open(fix_path).convert('L'))
+            fix = fix.astype('float')
+            fix = cv2.resize(fix, (256,256))
+            if np.max(fix) > 1.0:
+                fix = fix / 255.0
 
-            avg_vol[i] = avg
+            fix_vol[i] = fix
 
         assert np.min(gt_vol)>=0.0 and np.max(gt_vol)<=1.0
-        return img, torch.FloatTensor(gt_vol), torch.FloatTensor(avg_vol)
+        assert np.min(fix_vol)>=0.0 and np.max(fix_vol)<=1.0
+        return img, torch.FloatTensor(gt_vol), torch.FloatTensor(fix_vol)
 
     def __len__(self):
         return len(self.img_ids)

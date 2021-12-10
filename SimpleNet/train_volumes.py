@@ -23,6 +23,7 @@ if __name__ == '__main__':
         pass
 
     wandb.init(project="saliency")
+    wandb.define_metric("AVGs/CC_avg", summary="max")
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--no_epochs',default=10, type=int)
@@ -51,6 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--l1_coeff',default=1.0, type=float)
     parser.add_argument('--loss_coeff',default=0.0, type=float)
     parser.add_argument('--loss_rescaling',default=None, type=str)
+    parser.add_argument('--loss_rescaling_alternation',default=False, type=bool)
     parser.add_argument('--loss_rescaling_delay',default=0, type=int)
     parser.add_argument('--train_enc',default=1, type=int)
 
@@ -65,9 +67,11 @@ if __name__ == '__main__':
 
     train_img_dir = args.dataset_dir + "images/train/"
     train_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/train/"
+    train_fix_dir = args.dataset_dir + "fixation_volumes_" + str(args.time_slices) + "/train/"
 
     val_img_dir = args.dataset_dir + "images/val/"
     val_vol_dir = args.dataset_dir + "saliency_volumes_" + str(args.time_slices) + "/val/"
+    val_fix_dir = args.dataset_dir + "fixation_volumes_" + str(args.time_slices) + "/val/"
 
     print("PNAS with saliency volume Model")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -93,8 +97,8 @@ if __name__ == '__main__':
     train_img_ids = [nm.split(".")[0] for nm in os.listdir(train_img_dir)]
     val_img_ids = [nm.split(".")[0] for nm in os.listdir(val_img_dir)]
 
-    train_dataset = SaliconVolDataset(train_img_dir, train_vol_dir, train_img_ids, args.time_slices)
-    val_dataset = SaliconVolDataset(val_img_dir, val_vol_dir, val_img_ids, args.time_slices)
+    train_dataset = SaliconVolDataset(train_img_dir, train_vol_dir, train_fix_dir, train_img_ids, args.time_slices)
+    val_dataset = SaliconVolDataset(val_img_dir, val_vol_dir, val_fix_dir, val_img_ids, args.time_slices)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
@@ -115,7 +119,8 @@ if __name__ == '__main__':
             if args.sim:
                 losses[i] += args.sim_coeff * similarity(pred_map, gt)
 
-        if epoch >= args.loss_rescaling_delay:
+        if epoch >= args.loss_rescaling_delay and (not args.loss_rescaling_alternation or epoch % 2 == 1):
+            loss_type = args.loss_rescaling
             if args.loss_rescaling == 'min_max':
                 min_loss = torch.min(losses)
                 max_loss = torch.max(losses)
@@ -131,8 +136,12 @@ if __name__ == '__main__':
                 losses = losses + args.loss_coeff * losses.std()
             elif args.loss_rescaling == 'mean_diff':
                 losses = losses + (losses - losses.mean()).clip(min=0) ** args.loss_coeff
+            else:
+                loss_type = 'classic'
+        else:
+            loss_type = 'classic'
 
-        return torch.sum(losses) / args.time_slices
+        return loss_type, torch.sum(losses) / args.time_slices
     
     def train(model, optimizer, loader, epoch, device, args):
         model.train()
@@ -141,21 +150,20 @@ if __name__ == '__main__':
         total_loss = 0.0
         cur_loss = 0.0
 
-        for idx, (img, gt_vol, avg_vol) in enumerate(loader):
+        for idx, (img, gt_vol, _) in enumerate(loader):
             img = img.to(device)
             gt_vol = gt_vol.to(device)
-            avg_vol = avg_vol.to(device)
 
             optimizer.zero_grad()
             pred_vol = model(img)
-            pred_vol = pred_vol / pred_vol.max()
-            
-            if args.normalize:
-                gt_vol = (gt_vol - avg_vol + 1) / 2
+            #pred_vol = pred_vol / pred_vol.max()
             
             assert pred_vol.size() == gt_vol.size()
-            assert pred_vol.size() == avg_vol.size()
-            loss = loss_func(pred_vol, gt_vol, epoch, args)
+            loss_type, loss = loss_func(pred_vol, gt_vol, epoch, args)
+
+            if idx == 0:
+                print('[{:2d}] loss type : '.format(epoch) + loss_type)
+
             loss.backward()
             total_loss += loss.item()
             cur_loss += loss.item()
@@ -175,36 +183,64 @@ if __name__ == '__main__':
     def validate(model, loader, epoch, device, args):
         model.eval()
         tic = time.time()
-        cc_loss = AverageMeter()
-        kldiv_loss = AverageMeter()
-        nss_loss = AverageMeter()
-        sim_loss = AverageMeter()
+        cc_loss = []
+        kldiv_loss = []
+        nss_loss = []
+        sim_loss = []
 
-        for img, gt_vol, avg_vol in loader:
+        for _ in range(args.time_slices):
+            cc_loss.append(AverageMeter())
+            kldiv_loss.append(AverageMeter())
+            nss_loss.append(AverageMeter())
+            sim_loss.append(AverageMeter())
+
+        for img, gt_vol, fix_vol in tqdm(loader):
             img = img.to(device)
             gt_vol = gt_vol.to(device)
-            avg_vol = avg_vol.to(device)
+            fix_vol = fix_vol.to(device)
 
-            pred_vol = model(img)
-            if args.normalize:
-                pred_vol = pred_vol * 2 + avg_vol - 1
-                
-            pred_vol /= pred_vol.max()
+            pred_vol = model(img)                
+            #pred_vol /= pred_vol.max()
 
-            # Blurring
-            for i in range(pred_vol.size()[0]):
-                pred_map = pred_vol[i]
+            for i in range(pred_vol.size()[1]):
+                cc_loss[i].update(cc(pred_vol[:,i], gt_vol[:,i]))
+                kldiv_loss[i].update(kldiv(pred_vol[:,i], gt_vol[:,i]))
+                nss_loss[i].update(nss(pred_vol[:,i], fix_vol[:,i]))
+                sim_loss[i].update(similarity(pred_vol[:,i], gt_vol[:,i]))
 
-                cc_loss.update(cc(pred_map, gt_vol[i]))
-                kldiv_loss.update(kldiv(pred_map, gt_vol[i]))
-                nss_loss.update(nss(pred_map, gt_vol[i])) # replace GT by fixations
-                sim_loss.update(similarity(pred_map, gt_vol[i]))
+        for i in range(args.time_slices):
+            cc_loss[i] = cc_loss[i].avg.item()
+            kldiv_loss[i] = kldiv_loss[i].avg.item()
+            nss_loss[i] = nss_loss[i].avg.item()
+            sim_loss[i] = sim_loss[i].avg.item()
 
-        print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
-        wandb.log({"CC": cc_loss.avg, 'KLDIV': kldiv_loss.avg, 'NSS': nss_loss.avg, 'SIM': sim_loss.avg})
+        avg_cc = np.mean(cc_loss)
+        avg_kl = np.mean(kldiv_loss)
+        avg_nss = np.mean(nss_loss)
+        avg_sim = np.mean(sim_loss)
+
+        std_cc = np.std(cc_loss)
+        std_kl = np.std(kldiv_loss)
+        std_nss = np.std(nss_loss)
+        std_sim = np.std(sim_loss)
+
+        for i in range(args.time_slices):
+            print('[{:1d},   val] SLICE_{:2d}'.format(epoch, i) +
+            '   CC: ' + get_colored_value(cc_loss[i], avg_cc) + 
+            ', KLDIV: ' + get_colored_value(kldiv_loss[i], avg_kl, False) + 
+            ', NSS: ' + get_colored_value(nss_loss[i], avg_nss) + 
+            ', SIM: ' + get_colored_value(sim_loss[i], avg_sim) + 
+            ' time: {:3f} minutes'.format((time.time()-tic)/60))
+            wandb.log({f"CC/CC_{i}": cc_loss[i], f"KLDIV/KLDIV_{i}": kldiv_loss[i], f"NSS/NSS_{i}": nss_loss[i], f"SIM/SIM_{i}": sim_loss[i]}, commit=False)
+
+        print('[{:2d},   val] STDs       CC: {:.5f}, KLDIV: {:.5f}, NSS: {:.5f}, SIM: {:.5f} time: {:3f} minutes'.format(epoch, std_cc, std_kl, std_nss, std_sim, (time.time()-tic)/60))
+        print('[{:2d},   val] AVGs       CC: {:.5f}, KLDIV: {:.5f}, NSS: {:.5f}, SIM: {:.5f} time: {:3f} minutes'.format(epoch, avg_cc, avg_kl, avg_nss, avg_sim, (time.time()-tic)/60))
+        
+        wandb.log({"AVGs/CC_avg": avg_cc, 'AVGs/KLDIV_avg': avg_kl, 'AVGs/NSS_avg': avg_nss, 'AVGs/SIM_avg': avg_sim}, commit=False)
+        wandb.log({"STDs/CC_std": std_cc, 'STDs/KLDIV_std': std_kl, 'STDs/NSS_std': std_nss, 'STDs/SIM_std': std_sim})
         sys.stdout.flush()
 
-        return cc_loss.avg
+        return avg_cc
 
     if args.optim=="Adam":
         optimizer = torch.optim.Adam(params, lr=args.lr)
