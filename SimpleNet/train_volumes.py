@@ -43,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--normalize',default=False, type=str)
     parser.add_argument('--load_weight',default=1, type=int)
     parser.add_argument('--kldiv_coeff',default=1.0, type=float)
-    parser.add_argument('--step_size',default=5, type=int)
+    parser.add_argument('--step_size',default=2, type=int)
     parser.add_argument('--cc_coeff',default=-1.0, type=float)
     parser.add_argument('--sim_coeff',default=-1.0, type=float)
     parser.add_argument('--nss_coeff',default=1.0, type=float)
@@ -136,12 +136,20 @@ if __name__ == '__main__':
                 losses = losses + args.loss_coeff * losses.std()
             elif args.loss_rescaling == 'mean_diff':
                 losses = losses + (losses - losses.mean()).clip(min=0) ** args.loss_coeff
+            elif args.loss_rescaling == 'consecutive_diff':
+                diffs = 0
+                for i in range(args.time_slices - 1):
+                    cc_pred = cc(pred_vol[:,i], pred_vol[:,i+1])
+                    cc_gt = cc(gt_vol[:,i], gt_vol[:,i+1])
+                    diffs += abs(cc_pred - cc_gt)
+                diffs /= args.time_slices - 1
+                losses += diffs * args.loss_coeff
             else:
                 loss_type = 'classic'
         else:
             loss_type = 'classic'
 
-        return loss_type, torch.sum(losses) / args.time_slices
+        return loss_type, torch.mean(losses)
     
     def train(model, optimizer, loader, epoch, device, args):
         model.train()
@@ -249,7 +257,7 @@ if __name__ == '__main__':
     if args.optim=="SGD":
         optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9)
     if args.lr_sched:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
 
     print(device)
 

@@ -28,35 +28,26 @@ def generate_fixation_files(path, time_slices):
 
     print('Generating saliency volumes of ' + path + '...')
     for filename in tqdm(filenames):
-        missing_files = False
-        for i in range(time_slices):
-            sal_size = os.path.getsize(sal_vol_path + filename + '_' + str(i) + '.png')
-            fix_size = os.path.getsize(fix_vol_path + filename + '_' + str(i) + '.png')
-            if sal_size * fix_size == 0:
-                missing_files = True
-                break
-        
-        if missing_files:
-            fixation_volume = parse_fixations([filename], FIXATION_PATH + path, progress_bar=False)[0]
-            fix_timestamps = sorted([fixation for fix_timestamps in fixation_volume
-                                            for fixation in fix_timestamps], key=lambda x: x[0])
-            fix_timestamps = np.array([(min(int(ts * time_slices / TIMESPAN), time_slices-1), (x, y)) for (ts, (x, y)) in fix_timestamps])
+        fixation_volume = parse_fixations([filename], FIXATION_PATH + path, progress_bar=False)[0]
+        fix_timestamps = sorted([fixation for fix_timestamps in fixation_volume
+                                        for fixation in fix_timestamps], key=lambda x: x[0])
+        fix_timestamps = np.array([(min(int(ts * time_slices / TIMESPAN), time_slices-1), (x, y)) for (ts, (x, y)) in fix_timestamps])
 
-            # Saving fixation map
-            fix_vol = np.zeros(shape=(time_slices,H,W))
-            for i, coords in fix_timestamps:
-                fix_vol[i, coords[1] - 1, coords[0] - 1] = 1
+        # Saving fixation map
+        fix_vol = np.zeros(shape=(time_slices,H,W))
+        for i, coords in fix_timestamps:
+            fix_vol[i, coords[1] - 1, coords[0] - 1] = 1
 
-            # Saving fixation list with timestamps
-            compressed = np.array([(key, list(v[1] for v in valuesiter))
-                                for key,valuesiter in groupby(fix_timestamps, key=itemgetter(0))])
+        # Saving fixation list with timestamps
+        compressed = np.array([(key, list(v[1] for v in valuesiter))
+                            for key,valuesiter in groupby(fix_timestamps, key=itemgetter(0))])
 
-            saliency_volume = get_saliency_volume(compressed, conv2D, time_slices)
-            saliency_volume = saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy()
+        saliency_volume = get_saliency_volume(compressed, conv2D, time_slices)
+        saliency_volume = saliency_volume.squeeze(0).squeeze(0).detach().cpu().numpy()
 
-            for i, saliency_slice in enumerate(saliency_volume):
-                cv2.imwrite(sal_vol_path + filename + '_' + str(i) + '.png', 255 * saliency_slice)
-                cv2.imwrite(fix_vol_path + filename + '_' + str(i) + '.png', 255 * fix_vol[i])
+        for i, saliency_slice in enumerate(saliency_volume):
+            cv2.imwrite(sal_vol_path + filename + '_' + str(i) + '.png', 255 * saliency_slice)
+            cv2.imwrite(fix_vol_path + filename + '_' + str(i) + '.png', 255 * fix_vol[i])
 
 args = parser.parse_args()
 time_slices = args.time_slices
