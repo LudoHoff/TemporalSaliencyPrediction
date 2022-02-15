@@ -1,27 +1,14 @@
 import argparse
-import glob, os
+import os
 import torch
 import sys
 import time
 import wandb
 import torch.nn as nn
-import pickle
-from torch.distributions.multivariate_normal import MultivariateNormal as Norm
-from torch.autograd import Variable
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from torchvision import transforms, utils
-from PIL import Image
-from torch.utils.data import DataLoader
-import numpy as np
-import torch.nn.init as init
-import torch.nn.functional as F
-from scipy.stats import multivariate_normal
+from tqdm import tqdm
 from dataloader import SaliconDataset
 from loss import *
-import cv2
-from utils import blur, AverageMeter
+from utils import AverageMeter
 
 wandb.init(project="saliency")
 
@@ -29,7 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--no_epochs',default=40, type=int)
 parser.add_argument('--lr',default=1e-4, type=float)
 parser.add_argument('--kldiv',default=True, type=bool)
-parser.add_argument('--cc',default=False, type=bool)
+parser.add_argument('--cc',default=True, type=bool)
 parser.add_argument('--nss',default=False, type=bool)
 parser.add_argument('--sim',default=False, type=bool)
 parser.add_argument('--nss_emlnet',default=False, type=bool)
@@ -45,7 +32,7 @@ parser.add_argument('--kldiv_coeff',default=1.0, type=float)
 parser.add_argument('--step_size',default=5, type=int)
 parser.add_argument('--cc_coeff',default=-1.0, type=float)
 parser.add_argument('--sim_coeff',default=-1.0, type=float)
-parser.add_argument('--nss_coeff',default=1.0, type=float)
+parser.add_argument('--nss_coeff',default=-1.0, type=float)
 parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
 parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
 parser.add_argument('--l1_coeff',default=1.0, type=float)
@@ -55,8 +42,15 @@ parser.add_argument('--dataset_dir',default="../data/", type=str)
 parser.add_argument('--batch_size',default=32, type=int)
 parser.add_argument('--log_interval',default=60, type=int)
 parser.add_argument('--no_workers',default=4, type=int)
+parser.add_argument('--train_model',default=False, type=bool)
+parser.add_argument('--time_slices',default=5, type=int)
+
+# Path to save the model weights
 parser.add_argument('--model_val_path',default="model.pt", type=str)
+# If the model type is pnas_boosted, specify the path of the pre-trained pnas model here
 parser.add_argument('--model_path',default="", type=str)
+# If the model type is pnas_boosted, specify the path of the pre-trained pnasvol model here
+parser.add_argument('--model_vol_path',default="", type=str)
 
 
 args = parser.parse_args()
@@ -79,7 +73,7 @@ if args.enc_model == "pnas":
 elif args.enc_model == "pnas_boosted":
     print("PNAS Boosted Model")
     from model import PNASBoostedModel
-    model = PNASBoostedModel(device, args.model_path, 5)
+    model = PNASBoostedModel(device, args.model_path, args.model_vol_path, args.time_slices, train_model=args.train_model)
 
 elif args.enc_model == "densenet":
     print("DenseNet Model")
@@ -167,13 +161,12 @@ def train(model, optimizer, loader, epoch, device, args):
 def validate(model, loader, epoch, device, args):
     model.eval()
     tic = time.time()
-    total_loss = 0.0
     cc_loss = AverageMeter()
     kldiv_loss = AverageMeter()
     nss_loss = AverageMeter()
     sim_loss = AverageMeter()
 
-    for (img, gt, fixations) in loader:
+    for (img, gt, fixations) in tqdm(loader):
         img = img.to(device)
         gt = gt.to(device)
         fixations = fixations.to(device)
@@ -181,13 +174,13 @@ def validate(model, loader, epoch, device, args):
         pred_map = model(img)
 
         # Blurring
-        blur_map = pred_map.cpu().squeeze(0).clone().numpy()
-        blur_map = blur(blur_map).unsqueeze(0).to(device)
+        #pred_map = pred_map.cpu().squeeze(0).clone().numpy()
+        #pred_map = blur(pred_map).unsqueeze(0).to(device)
 
-        cc_loss.update(cc(blur_map, gt))
-        kldiv_loss.update(kldiv(blur_map, gt))
-        nss_loss.update(nss(blur_map, gt))
-        sim_loss.update(similarity(blur_map, gt))
+        cc_loss.update(cc(pred_map, gt))
+        kldiv_loss.update(kldiv(pred_map, gt))
+        nss_loss.update(nss(pred_map, gt))
+        sim_loss.update(similarity(pred_map, gt))
 
     print('[{:2d},   val] CC : {:.5f}, KLDIV : {:.5f}, NSS : {:.5f}, SIM : {:.5f}  time:{:3f} minutes'.format(epoch, cc_loss.avg, kldiv_loss.avg, nss_loss.avg, sim_loss.avg, (time.time()-tic)/60))
     wandb.log({"CC": cc_loss.avg, 'KLDIV': kldiv_loss.avg, 'NSS': nss_loss.avg, 'SIM': sim_loss.avg})

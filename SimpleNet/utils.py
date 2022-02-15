@@ -71,7 +71,7 @@ def parse_fixations(filenames,
         for i, observer in enumerate(fixations):
             fix_timestamps = []
             fix_time = TIMESPAN / (len(observer) + 1)
-            est_timestamp = 0
+            est_timestamp = fix_time
 
             for fixation in observer:
                 distances = distance.cdist([fixation], locations[i], 'euclidean')[0][..., np.newaxis]

@@ -46,11 +46,11 @@ if __name__ == '__main__':
     parser.add_argument('--step_size',default=2, type=int)
     parser.add_argument('--cc_coeff',default=-1.0, type=float)
     parser.add_argument('--sim_coeff',default=-1.0, type=float)
-    parser.add_argument('--nss_coeff',default=1.0, type=float)
+    parser.add_argument('--nss_coeff',default=-1.0, type=float)
     parser.add_argument('--nss_emlnet_coeff',default=1.0, type=float)
     parser.add_argument('--nss_norm_coeff',default=1.0, type=float)
     parser.add_argument('--l1_coeff',default=1.0, type=float)
-    parser.add_argument('--loss_coeff',default=0.0, type=float)
+    parser.add_argument('--loss_coeff',default=1.0, type=float)
     parser.add_argument('--loss_rescaling',default=None, type=str)
     parser.add_argument('--loss_rescaling_alternation',default=False, type=bool)
     parser.add_argument('--loss_rescaling_delay',default=0, type=int)
@@ -103,53 +103,24 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.no_workers)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=args.no_workers)
 
-    def loss_func(pred_vol, gt_vol, epoch, args):
-        losses = torch.zeros(args.time_slices).cuda()
-        criterion = nn.L1Loss()
+    def loss_func(pred_map, gt, fixations, args):
+        loss = torch.FloatTensor([0.0]).cuda()
+        pred_map = pred_map.reshape((pred_map.size()[0], -1, pred_map.size()[3]))
+        gt = gt.reshape((gt.size()[0], -1, gt.size()[3]))
 
-        for i in range(args.time_slices):
-            pred_map = pred_vol[:,i]
-            gt = gt_vol[:,i]
-            if args.kldiv:
-                losses[i] += args.kldiv_coeff * kldiv(pred_map, gt)
-            if args.cc:
-                losses[i] += args.cc_coeff * cc(pred_map, gt)
-            if args.l1:
-                losses[i] += args.l1_coeff * criterion(pred_map, gt)
-            if args.sim:
-                losses[i] += args.sim_coeff * similarity(pred_map, gt)
+        assert pred_map.max() == 1.0 and gt.max() == 1.0
 
-        if epoch >= args.loss_rescaling_delay and (not args.loss_rescaling_alternation or epoch % 2 == 1):
-            loss_type = args.loss_rescaling
-            if args.loss_rescaling == 'min_max':
-                min_loss = torch.min(losses)
-                max_loss = torch.max(losses)
-                losses = losses * (1 + args.loss_coeff * (losses - min_loss) / (max_loss - min_loss))
-            elif args.loss_rescaling == 'power':
-                losses = losses * (losses / torch.min(losses)) ** args.loss_coeff
-            elif args.loss_rescaling == 'max':
-                losses = losses * (losses / torch.max(losses)) ** args.loss_coeff
-            elif args.loss_rescaling == 'diff':
-                min_loss = torch.min(losses)
-                losses = losses + args.loss_coeff * (losses - min_loss)
-            elif args.loss_rescaling == 'std':
-                losses = losses + args.loss_coeff * losses.std()
-            elif args.loss_rescaling == 'mean_diff':
-                losses = losses + (losses - losses.mean()).clip(min=0) ** args.loss_coeff
-            elif args.loss_rescaling == 'consecutive_diff':
-                diffs = 0
-                for i in range(args.time_slices - 1):
-                    cc_pred = cc(pred_vol[:,i], pred_vol[:,i+1])
-                    cc_gt = cc(gt_vol[:,i], gt_vol[:,i+1])
-                    diffs += abs(cc_pred - cc_gt)
-                diffs /= args.time_slices - 1
-                losses += diffs * args.loss_coeff
-            else:
-                loss_type = 'classic'
-        else:
-            loss_type = 'classic'
+        if args.kldiv:
+            loss += args.kldiv_coeff * kldiv(pred_map, gt)
+        if args.cc:
+            loss += args.cc_coeff * cc(pred_map, gt)
+        if args.nss:
+            fixations = fixations.reshape((fixations.size()[0], -1, fixations.size()[3]))
+            loss += args.nss_coeff * nss(pred_map, fixations)
+        if args.sim:
+            loss += args.sim_coeff * similarity(pred_map, gt)
 
-        return loss_type, torch.mean(losses)
+        return "combined_slices", loss
     
     def train(model, optimizer, loader, epoch, device, args):
         model.train()
@@ -158,16 +129,17 @@ if __name__ == '__main__':
         total_loss = 0.0
         cur_loss = 0.0
 
-        for idx, (img, gt_vol, _) in enumerate(loader):
+        for idx, (img, gt_vol, fix_vol) in enumerate(loader):
             img = img.to(device)
             gt_vol = gt_vol.to(device)
+            fix_vol = fix_vol.to(device)
 
             optimizer.zero_grad()
             pred_vol = model(img)
             #pred_vol = pred_vol / pred_vol.max()
             
             assert pred_vol.size() == gt_vol.size()
-            loss_type, loss = loss_func(pred_vol, gt_vol, epoch, args)
+            loss_type, loss = loss_func(pred_vol, gt_vol, fix_vol, args)
 
             if idx == 0:
                 print('[{:2d}] loss type : '.format(epoch) + loss_type)
@@ -208,7 +180,6 @@ if __name__ == '__main__':
             fix_vol = fix_vol.to(device)
 
             pred_vol = model(img)                
-            #pred_vol /= pred_vol.max()
 
             for i in range(pred_vol.size()[1]):
                 cc_loss[i].update(cc(pred_vol[:,i], gt_vol[:,i]))
@@ -257,7 +228,7 @@ if __name__ == '__main__':
     if args.optim=="SGD":
         optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9)
     if args.lr_sched:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     print(device)
 
